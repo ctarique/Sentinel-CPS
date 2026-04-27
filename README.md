@@ -15,25 +15,26 @@ To prevent unauthorized lateral movement and secure the flashing process, the ph
 * **Secondary ESP32 Hub:** Connected directly to the workstation via USB. Students use the Arduino IDE to safely compile and flash secondary microcontrollers without ever touching the primary infrastructure.
 
 #### **Zone 2: The Sentinel Boundary**
-* **The Gateway (Raspberry Pi):** The core routing and security layer. It hosts the Flask web portal that students use to interact with the physical hardware.
-* **Primary ESP32 Controller:** Connected to the Pi via secure USB serial. 
-* **Autonomous Edge Nodes:** The primary ESP32 utilizes an ESP-NOW (MAC-to-MAC) wireless bridge to communicate with autonomous 3D-printed cars navigating a physical smart-TV obstacle course.
+* **The Gateway (Raspberry Pi):** The core routing and security layer. It hosts the Flask web portal (located in `/gateway`) that students use to interact with the physical hardware. The portal operates natively on **bare-metal via systemd** (see `sentinel.service.template`) to ensure uninterrupted host-level observability for Phase II eBPF integration.
+* **Primary ESP32 Controller (Hub):** Connected to the Pi via secure USB serial on `/dev/ttyUSB0`.
+* **Autonomous Edge Nodes:** The vehicles utilize a **Split-Channel model**: an **encrypted ESP-NOW wireless bridge** for low-latency control commands and a **private, isolated Gateway-hosted Access Point** (`Sentinel_Vision`) for high-bandwidth video ingestion.
 
 ---
 
 ### **Security & Access Control Constraints**
 Because the gateway operates in a shared enterprise environment, it employs a strict "Default-Deny" inbound policy and identity-based access controls.
 
-* **Network Micro-segmentation:** Inbound traffic is regulated via `nftables`. SSH access is strictly constrained, and only explicitly defined management subnets can hit the Flask web UI.
-* **Zero-Trust Identity Enforcement (Current Implementation):** Transitioning away from IP-based micro-segmentation, the gateway employs an **SSH Cryptographic Lockout**. Password authentication is completely disabled. Access to the Raspberry Pi is exclusively restricted to an Ed25519 key pair stored securely on the administrative profile of the Zone 1 workstation.
-* **Interaction Model:** Students cannot directly flash or SSH into the Sentinel Boundary. All interaction with the autonomous cars occurs strictly through the Pi’s containerized Flask web portal.
+* **Network Micro-segmentation:** Inbound traffic is regulated via `nftables` (see `docs/firewall_setup.md`). SSH access is strictly constrained, and only explicitly whitelisted MAC addresses can reach the Flask web UI.
+* **Zero-Trust Identity Enforcement:** Transitioning away from IP-based micro-segmentation, the gateway employs an **SSH Cryptographic Lockout**. Password authentication is completely disabled. Access to the Raspberry Pi is exclusively restricted to **Ed25519 key pairs** stored securely on the administrative profiles of authorized management workstations.
+* **Interaction Model:** Students cannot directly flash or SSH into the Sentinel Boundary. All interaction with the autonomous cars occurs strictly through the Pi’s **bare-metal Flask web portal**.
+* **Remote Access:** Off-campus management is **architected to utilize** the existing university VPN and a designated **Windows Bastion Host** to ensure the gateway remains shielded from the public internet.
 
 ---
 
 ### **Tech Stack**
-* **Security & Infrastructure:** Linux (`nftables`), Ed25519 Cryptography, Docker
-* **Backend Gateway:** Python 3, Flask, PySerial, `fcntl` (Thread-safe concurrent logging)
-* **Hardware & Wireless:** Raspberry Pi, ESP32, ESP-NOW protocol
+* **Security & Infrastructure:** Linux (`nftables`), Ed25519 Cryptography, **systemd**.
+* **Backend Gateway:** Python 3, Flask, PySerial, `fcntl` (Thread-safe concurrent logging).
+* **Hardware & Wireless:** Raspberry Pi 4, ESP32, **ESP-NOW (CCMP Encrypted)**, **hostapd** (Private AP).
 
 ---
 

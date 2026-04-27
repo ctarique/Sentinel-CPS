@@ -12,7 +12,7 @@ import serial
 app = Flask(__name__)
 
 # --- Configuration ---
-BASE_DIR = os.path.expanduser("~/iot_lab")
+BASE_DIR = os.path.expanduser("~/GitHub_Projects/sentinel-zero-trust-gateway/gateway")
 LOG_PATH = os.path.join(BASE_DIR, "logs", "actions.csv")
 DEVICE_ID = "esp32-D0WDQ6" 
 SOURCE_HOST = socket.gethostname()
