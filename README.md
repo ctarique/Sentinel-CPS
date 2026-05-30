@@ -1,58 +1,207 @@
 # Sentinel-CPS
 
-### **Project Overview**
-Sentinel is a hardened, zero-trust edge gateway designed to secure Cyber-Physical Systems (CPS) within a remote IoT laboratory. Operating within a highly restrictive university enterprise network, this architecture establishes an isolated command-and-control boundary between a shared student sandbox and autonomous edge nodes. 
+**Sentinel-CPS** is a zero-trust edge gateway architecture for securing remote cyber-physical systems education. The project is being developed as a master's thesis prototype for safely exposing autonomous IoT/CPS hardware to remote users without giving those users direct access to protected gateway services, edge devices, or broader enterprise infrastructure.
 
-This **monorepo** houses the complete Cyber-Physical System stack, including the bare-metal Linux Gateway Infrastructure (Python/Flask), the autonomous Edge Firmware (ESP32 C++), and the comprehensive thesis documentation.
-
----
-
-### **Project Scope & Phases**
-The Sentinel architecture is developed and deployed across three distinct academic phases:
-
-* **Phase I: Secure Infrastructure (Foundation)**
-  Establishing the Zero-Trust perimeter. This includes Layer 2 network micro-segmentation, SSH cryptographic lockouts, and the bare-metal deployment of the Python Gateway daemon to manage the air-gapped physical hardware.
-* **Phase II: Autonomous Edge & Digital Twin (Active)**
-  Deploying the Hub-and-Spoke physical topology. This phase introduces the "Split-Channel" ESP-NOW wireless bridge, computer vision lane tracking, and the Mission Control Smart TV acting as a live "Digital Twin" telemetry dashboard.
-* **Phase III: K-Space Observability & AI Inference (Upcoming)**
-  Securing the runtime environment. Leveraging the bare-metal execution of the Gateway, this phase integrates eBPF (Extended Berkeley Packet Filter) kernel hooks to monitor raw serial syscalls. An AI-driven anomaly detection model will evaluate this telemetry to identify and mitigate threats (e.g., DoS flooding, injection attacks) in real-time.
+The system combines a hardened Raspberry Pi gateway, an authorized remote-access workflow, ESP32-based autonomous edge vehicles, encrypted ESP-NOW communication, a Smart TV-based dynamic physical track, and planned eBPF/AI-assisted anomaly detection at the gateway chokepoint.
 
 ---
 
-### **Hardware Topology: The Dual-Zone Boundary**
-To prevent unauthorized lateral movement and secure the flashing process, the physical architecture is strictly divided into two distinct zones connected via a single ethernet switch:
+## Research Purpose
 
-#### **Zone 1: The Student Sandbox**
-* **Shared Enterprise Workstation (Windows):** Students authenticate via enterprise AD to access this machine remotely.
-* **Secondary ESP32 Hub:** Connected directly to the workstation via USB. Students use the Arduino IDE to safely compile and flash secondary microcontrollers without ever touching the primary infrastructure.
+Remote IoT and robotics labs create a difficult security problem: students need meaningful hands-on access to physical devices, but exposing development hosts, control interfaces, or edge devices can introduce risks involving lateral movement, unauthorized control, telemetry abuse, and unsafe physical behavior.
 
-#### **Zone 2: The Sentinel Boundary**
-* **The Gateway (Raspberry Pi):** The core routing and security layer. It hosts the Python Flask web portal (located in `/gateway`) that operates natively on **bare-metal via systemd** to ensure uninterrupted host-level observability for Phase III eBPF integration. It features a "Digital Twin" JSON Lane Builder to visually map physical tracks and render real-time vehicle telemetry.
-* **Primary ESP32 Controller (Hub):** Connected to the Pi via secure USB serial on `/dev/ttyUSB0`.
-* **Mission Control Smart TV:** Acts as the physical visual boundary for the vehicles and connects exclusively to the isolated Gateway AP to display the Zero-Trust dashboard.
-* **Autonomous Edge Nodes:** The vehicles utilize a **Split-Channel model**: an **encrypted ESP-NOW wireless bridge** for low-latency control commands and a **private, isolated Gateway-hosted Access Point** (`Sentinel_Vision`) for high-bandwidth video ingestion.
+Sentinel-CPS addresses this problem by separating the system into explicit trust boundaries:
 
----
-
-### **Security & Access Control Constraints**
-Because the gateway operates in a shared enterprise environment, it employs a strict "Default-Deny" inbound policy and identity-based access controls.
-
-* **Network Micro-segmentation (Tiered HLAC):** Inbound traffic is regulated via `nftables`. SSH access is strictly constrained to authorized administrators, while the Smart TV is whitelisted strictly for Port 5000 to access the web UI.
-* **Zero-Trust Identity Enforcement:** Transitioning away from IP-based micro-segmentation, the gateway employs an **SSH Cryptographic Lockout**. Password authentication is completely disabled. Access to the Raspberry Pi is exclusively restricted to **Ed25519 key pairs** stored securely on the administrative profiles of authorized management workstations.
-* **Interaction Model:** Students cannot directly flash or SSH into the Sentinel Boundary. All interaction with the autonomous cars occurs strictly through the Pi’s **bare-metal Flask web portal**.
-* **Remote Access:** Off-campus management is **architected to utilize** the existing university VPN and a designated **Windows Bastion Host** to ensure the gateway remains shielded from the public internet.
+* **Remote Educational Sandbox:** controlled user access through an authorized bastion workflow
+* **Zero-Trust Gateway:** Raspberry Pi enforcement node for access control, command mediation, logging, and observability
+* **Encrypted Edge Telemetry:** ESP32 hub-and-spoke communication using ESP-NOW with encrypted peer communication
+* **TV-as-a-Track Execution Layer:** Smart TV surface that renders dynamic tracks followed by ESP32 vehicles using analog light sensors and PID control
+* **eBPF/AI Mitigation Layer:** planned gateway-side monitoring of serial I/O behavior and telemetry patterns for anomaly detection and emergency STOP/severance response
 
 ---
 
-### **Tech Stack**
-* **Security & Infrastructure:** Linux (`nftables`), Ed25519 Cryptography, **systemd**, eBPF (`bcc-tools`).
-* **Backend Gateway:** Python 3, Flask, PySerial, JSON Parsing, `fcntl` (Thread-safe concurrent logging).
-* **Hardware & Wireless:** Raspberry Pi 4, ESP32 (C++/Arduino), **ESP-NOW (CCMP Encrypted)**, OpenCV, **hostapd / dnsmasq** (Private AP).
+## Core Security Goals
+
+* Prevent direct remote exposure of protected CPS control infrastructure
+* Enforce least-privilege access between student workflows, gateway services, display endpoints, and edge devices
+* Use the gateway as a central policy enforcement and observability chokepoint
+* Replace manual track construction with repeatable software-defined physical test generation
+* Detect abnormal command, telemetry, replay, injection, or DoS-like behavior through application logs, serial tracing, and AI-assisted anomaly scoring
+* Preserve physical safety through emergency STOP and controlled serial-path severance logic
 
 ---
 
-### **Architecture Blueprint**
-![Sentinel Architecture Blueprint](docs/Unified_Zero-Trust_CPS_Blueprint_v9.0.png)
+## Current Thesis Scope
 
-**Author:** Tarique Chowdhury  
-**License:** MIT
+The current Sentinel-CPS architecture focuses on:
+
+* Bare-metal Raspberry Pi gateway execution using `systemd`
+* Default-deny `nftables` access control with service-level segmentation
+* Ed25519 key-based administrative access
+* Flask-based command-and-control web application on TCP Port `8080`
+* Lane Builder and digital twin telemetry interface
+* Smart TV-as-a-Track physical execution model
+* ESP32 vehicles using downward-facing analog light sensors and onboard PID logic
+* ESP32 hub mediation between gateway serial commands and encrypted ESP-NOW edge communication
+* Planned eBPF tracing of gateway serial read/write behavior
+* Lightweight AI-assisted anomaly detection and mitigation
+
+---
+
+## Architecture Overview
+
+Sentinel-CPS is organized into four major layers:
+
+| Layer                         | Purpose                                                                         | Core Components                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Remote Educational Sandbox    | Provides controlled remote access for students, reviewers, or administrators    | Authorized VPN workflow, bastion host, isolated development hardware                    |
+| Zero-Trust Gateway            | Mediates access, commands, logging, web services, and observability             | Raspberry Pi 4, Linux, `nftables`, Flask, `systemd`, Ed25519 SSH, eBPF tooling          |
+| Encrypted Edge Telemetry      | Carries command and telemetry traffic between the gateway hub and edge vehicles | ESP32 hub, ESP-NOW, CCMP encryption, ESP32 vehicle nodes                                |
+| TV-as-a-Track Execution Layer | Converts a digital control interface into a physical navigation surface         | Smart TV display, Lane Builder, digital twin overlay, analog light sensors, PID control |
+
+---
+
+## TV-as-a-Track Execution Model
+
+A major design feature of Sentinel-CPS is the use of a horizontally mounted Smart TV as a dynamic physical track.
+
+Instead of relying on static tape tracks, printed lanes, or camera-based navigation, the system renders a high-contrast digital lane pattern on the TV surface. ESP32 vehicles use downward-facing analog light sensors to read pixel luminance differences and follow the generated track using onboard PID control.
+
+This creates a repeatable cyber-physical test surface where track layouts can be changed through software while the physical vehicles respond to the rendered environment in real time.
+
+---
+
+## Gateway Security Model
+
+The Raspberry Pi gateway acts as the central enforcement point for the system. It is responsible for hosting the control interface, mediating commands, logging system behavior, and preparing telemetry for anomaly detection.
+
+Key controls include:
+
+* Default-deny inbound access control using `nftables`
+* Separation of administrative access and display/control access
+* Ed25519 key-based SSH administration
+* Service-level access restrictions for the web interface
+* Serial chokepoint between the gateway and ESP32 hub
+* Native host execution through `systemd` to preserve low-level observability
+* Planned eBPF tracing of serial read/write behavior for runtime monitoring
+
+The gateway is intentionally treated as the only authorized mediator between remote users and the physical CPS environment.
+
+---
+
+## eBPF and AI-Assisted Threat Mitigation
+
+The planned monitoring layer focuses on behavior at the gateway chokepoint. Application logs alone may not reveal abnormal low-level activity, so Sentinel-CPS is designed to incorporate eBPF-based tracing of serial read/write behavior associated with the gateway-to-hub communication path.
+
+The anomaly detection pipeline is intended to evaluate:
+
+* Command frequency
+* Telemetry timing
+* Serial read/write behavior
+* Expected ESP-NOW payload patterns
+* PID and vehicle response behavior
+* Replay, injection, flooding, or DoS-like conditions
+
+When critical anomalies are detected, the gateway is designed to issue an emergency STOP command and initiate controlled serial-path severance to protect the physical system.
+
+---
+
+## Repository Structure
+
+```text
+.
+├── docs/          # Thesis documentation, architecture notes, diagrams, and validation planning
+├── firmware/      # ESP32 hub and vehicle firmware
+├── .env.example   # Sanitized environment configuration template
+├── .gitignore
+├── LICENSE
+└── README.md
+```
+
+Additional gateway, telemetry, and validation code will be organized as implementation continues.
+
+---
+
+## Current Status
+
+Sentinel-CPS is currently in active thesis development.
+
+The current architecture has been updated to focus on:
+
+* Zero-trust gateway mediation
+* Remote educational access through a controlled bastion workflow
+* Smart TV-based dynamic track generation
+* ESP32 light-sensor/PID vehicle navigation
+* Encrypted ESP-NOW hub-and-spoke edge communication
+* eBPF/AI-assisted gateway anomaly detection and mitigation
+
+This repository is intended to serve as a public, sanitized portfolio version of the project. Sensitive deployment details, internal network identifiers, credentials, and institution-specific configuration values are intentionally excluded.
+
+---
+
+## Validation Plan
+
+The thesis validation plan focuses on five major areas:
+
+1. **Access Control Validation**
+   Confirm that only approved endpoints can access gateway services and that display endpoints are not granted administrative privileges.
+
+2. **Remote Operation Validation**
+   Demonstrate that users can generate tracks, observe telemetry, and interact with the CPS through a controlled workflow without direct gateway exposure.
+
+3. **Physical Navigation Validation**
+   Evaluate whether ESP32 vehicles can reliably follow TV-rendered tracks using analog light sensors and onboard PID control.
+
+4. **Observability Validation**
+   Collect application logs, serial I/O traces, and edge telemetry to establish baseline behavior.
+
+5. **Threat Mitigation Validation**
+   Simulate injection, replay, abnormal command frequency, or DoS-like behavior and evaluate whether the gateway can trigger safe STOP/severance behavior.
+
+---
+
+## Documentation
+
+Supporting thesis documentation is maintained in the `docs/` directory.
+
+Planned documentation includes:
+
+* System Architecture Document
+* Thesis Scope Statement
+* Thesis Synopsis
+* Sanitized architecture blueprint
+* Validation plan
+* Threat model and security assumptions
+* Implementation notes
+
+---
+
+## Public Repository Notice
+
+This repository is a public portfolio and research-development version of Sentinel-CPS. It is not a production deployment guide.
+
+The repository intentionally avoids publishing:
+
+* Real IP addresses
+* MAC addresses
+* Hostnames tied to live infrastructure
+* Credentials or private keys
+* Internal network diagrams
+* Sensitive firewall rules
+* Institution-specific access details
+
+All public diagrams and configuration examples should be treated as sanitized representations of the thesis architecture.
+
+---
+
+## Author
+
+**Tarique Chowdhury**
+M.S. Cybersecurity Candidate
+Southeast Missouri State University
+
+---
+
+## License
+
+This project is licensed under the MIT License.
