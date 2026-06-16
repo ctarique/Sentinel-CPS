@@ -1,23 +1,43 @@
-# OS generated files
-.DS_Store
-
-# Python artifacts & Environments
+# Python
 __pycache__/
 *.py[cod]
+.venv/
 venv/
-vendor/
-
-# Security: Never track runtime telemetry, logs, or secrets
-logs/
-*.csv
 .env
 
-# Offline Payloads
-*.deb
-*.tar
+# Runtime data/logs
+logs/*
+!logs/.gitkeep
+gateway/data/*
+!gateway/data/.gitkeep
+*.log
+*.csv
 
-# SSH Keys (Safety Net)
-sentinel_admin
-sentinel_mac_admin
-sentinel_admin.pub
-sentinel_mac_admin.pub
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Secrets / local config
+*.key
+*.pem
+secrets/
+local_config.*
+
+# Temporary import/review folders - never commit
+_import_onedrive_v10/
+_unsanitized_review/
+_sensitive_review/
+
+# Office temporary files
+~$*
+*.tmp
+
+# Local notes that may contain private lab details
+PRIVATE_NOTES.md
+local_inventory.md
+.env.*
+!.env.example
+docs/evidence/private/
+*.docx
+*.pptx
