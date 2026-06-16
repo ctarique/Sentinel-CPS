@@ -4,7 +4,7 @@ Browser (via SEMO VPN & Bastion Host)
    |
 Bare-Metal Flask Gateway (Raspberry Pi)
    |                                  |
-   | Serial (USB /dev/ttyUSB0)        | Private Wi-Fi AP (Sentinel_Vision)
+   | Serial (USB /dev/ttyUSB0)        | Private Wi-Fi AP (<PRIVATE_DISPLAY_AP_SSID>)
    |                                  |
 ESP32 Hub Bridge                      | HTTP Video Stream
    |                                  |

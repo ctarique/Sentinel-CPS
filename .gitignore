@@ -36,3 +36,8 @@ _sensitive_review/
 # Local notes that may contain private lab details
 PRIVATE_NOTES.md
 local_inventory.md
+.env.*
+!.env.example
+docs/evidence/private/
+*.docx
+*.pptx
