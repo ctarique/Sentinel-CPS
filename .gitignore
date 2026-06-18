@@ -41,3 +41,4 @@ local_inventory.md
 docs/evidence/private/
 *.docx
 *.pptx
+host/nftables/*.local.backup

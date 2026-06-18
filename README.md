@@ -61,7 +61,7 @@ from this public repository.
 │   ├── templates/          # Flask template placeholder
 │   └── tests/              # Gateway test placeholder
 ├── host/
-│   ├── nftables/           # Reviewed host firewall configuration placeholder
+│   ├── nftables/           # Public nftables example configuration
 │   ├── systemd/            # Reviewed service configuration placeholder
 │   └── udev/               # Reviewed device policy placeholder
 ├── lane-subsystem/         # TV-as-a-Track and light-sensor lane material
@@ -75,13 +75,12 @@ from this public repository.
 
 Repository reconciliation for Sentinel-CPS v10.0 is complete. The repository
 now contains organized, selected shareable thesis PDFs, preserved architecture and
-research history, the current serial protocol note, a reviewed lane-subsystem
-artifact, and placeholders for planned implementation areas.
+research history, the current serial protocol note, lane-subsystem documentation,
+an early Gateway MVP scaffold, ESP32 firmware scaffolding, sanitized host-policy
+examples, and placeholders for planned eBPF monitoring and AI inference.
 
-The Gateway application, ESP32 firmware, host policy, eBPF monitoring, and AI
-inference are not yet implemented in this repository. A staged Gateway
-prototype was intentionally not imported because it requires sanitization and
-alignment with the v10.0 architecture.
+Additional implementation work is still required before the system should be
+treated as a complete deployment.
 
 ## Next Implementation Step
 

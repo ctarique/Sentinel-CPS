@@ -1,109 +1,65 @@
-# Raspberry Pi Gateway Firewall Configuration
+# Sentinel-CPS Sanitized Firewall Configuration
 
 ## Objective
 
-Implement a host-based firewall on the Raspberry Pi gateway to restrict inbound network access and enforce a default-deny security policy for the IoT lab environment.
+This document summarizes the public-safe nftables firewall design for the Sentinel-CPS Raspberry Pi Gateway. It intentionally uses placeholder MAC addresses and avoids live institutional network details.
 
-The firewall ensures that only trusted devices on the lab network can access management and application services.
+The Gateway enforces a default-deny inbound policy, separates administrative access from display/dashboard access, supports local mDNS resolution for `iot-pi.local`, and prevents the Gateway from acting as an unmanaged bridge.
 
----
+## Security Strategy
 
-## Network Environment
+The Gateway firewall uses nftables with the following controls:
 
-Raspberry Pi IP address  
-<RASPBERRY_PI_IP>
+- Default-deny inbound policy
+- Default-deny forwarding policy
+- Loopback traffic allowed
+- Established and related traffic allowed
+- Invalid connection states dropped
+- mDNS permitted for local hostname resolution
+- ICMP echo requests rate-limited for troubleshooting
+- SSH on TCP Port 22 restricted to approved administrative endpoints
+- C2 web dashboard on TCP Port 8080 restricted to approved admin/display endpoints
+- Display endpoints are not granted SSH privileges
 
-Workstation IP address  
-<WORKSTATION_IP>
+## Sanitized nftables Configuration
 
-The subnet allows communication between devices in the range above.
+```nft
+flush ruleset
 
----
-
-## Firewall Strategy
-
-The firewall uses nftables with a default deny inbound policy.
-
-Only explicitly permitted traffic is allowed.
-
-Allowed traffic:
-
-Loopback traffic (lo) for local system communication
-
-Established and related connections using connection tracking
-
-ICMP echo requests from the trusted lab subnet for diagnostics
-
-SSH access on port 22 from the trusted subnet
-
-Flask gateway web interface on port 5000 from the trusted subnet
-
-All other inbound traffic is dropped.
-
----
-
-## Final nftables Configuration
-
-chain input {
-        type filter hook input priority 0;
-        policy drop;
-
-        ct state invalid drop;
-        iif "lo" accept;
-        ct state established,related accept;
-
-        # Layer 2 HLAC: SSH Admin Access ONLY for approved physical workstations
-        ether saddr { <MAC_MACBOOK_ETH>, <MAC_WORKSTATION_ETH> } tcp dport 22 accept;
-
-        # Layer 2 HLAC: Web Gateway Access for workstations AND the Smart TV Dashboard
-        ether saddr { <MAC_MACBOOK_ETH>, <MAC_WORKSTATION_ETH>, <SMART_TV_MAC> } tcp dport 5000 accept;
+table inet filter {
+    set admin_macs {
+        type ether_addr
+        elements = { <ADMIN_ENDPOINT_MAC_1>, <ADMIN_ENDPOINT_MAC_2> }
     }
----
 
-## Validation Steps
+    set dashboard_macs {
+        type ether_addr
+        elements = { <DISPLAY_ENDPOINT_MAC> }
+    }
 
-The firewall configuration was validated using the following commands:
+    chain input {
+        type filter hook input priority filter; policy drop;
 
-sudo nft -c -f /etc/nftables.conf
+        ct state invalid drop
+        iif "lo" accept
+        ct state { established, related } accept
 
-sudo systemctl restart nftables
+        udp dport 5353 ip daddr 224.0.0.251 accept
+        udp dport 5353 ip6 daddr ff02::fb accept
 
-sudo nft list ruleset
+        ip protocol icmp icmp type echo-request limit rate 1/second accept
 
-sudo ss -tuln
+        tcp dport 22 ether saddr @admin_macs accept
 
-SSH connectivity from the workstation was confirmed after the firewall was applied.
+        tcp dport 8080 ether saddr @admin_macs accept
+        tcp dport 8080 ether saddr @dashboard_macs accept
+    }
 
-Access to the Flask gateway interface on port 5000 was also verified.
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
 
----
-
-## Security Rationale
-
-The gateway enforces a default deny inbound policy, which follows the principle of least privilege.
-
-Only specific trusted network ranges are allowed to access management and application services.
-
-Stateful packet filtering ensures that legitimate traffic associated with existing connections is permitted while blocking unsolicited inbound connections.
-
-This approach reduces the attack surface of the gateway and prevents unauthorized access to IoT devices connected through the Raspberry Pi.
-
-The Smart TV acting as the Mission Control display is treated as an untrusted endpoint; it is whitelisted exclusively for Port 5000 and cryptographically barred from SSH access.
-
-## Notes
-ESP32 communication is local over USB (not affected by firewall rules)
-
----
-
-## Phase 1.5: Zero-Trust Identity Enforcement (SSH Cryptographic Lockout)
-
-While the `nftables` configuration provides robust network-level micro-segmentation, true Zero-Trust requires identity-based enforcement at the application layer. 
-
-To eliminate the risk of credential brute-forcing and unauthorized lateral movement from within the trusted subnet, password authentication for the Raspberry Pi gateway has been completely disabled. 
-
-**Implementation Details:**
-* **Key Algorithm:** Ed25519 (chosen for its high security margin and performance efficiency).
-* **Access Boundary:** The private key is securely housed exclusively on the local administrative profile of the Zone 1 Workstation. 
-* **Enforcement:** The `sshd_config` on the Raspberry Pi is explicitly configured to reject all `PasswordAuthentication` and `PermitRootLogin`. 
-
-This ensures that even if an unauthorized device successfully spoofs an IP address within the trusted lab subnet, access to the Sentinel boundary remains cryptographically impossible without the physical workstation's private key.
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}
