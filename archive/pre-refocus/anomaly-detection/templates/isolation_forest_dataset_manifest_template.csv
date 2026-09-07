@@ -1,0 +1,2 @@
+schema_version,capture_id,split,evidence_class,scenario_id,capture_start_utc,capture_end_utc,actions_csv,telemetry_csv,ebpf_csv,ebpf_coverage_complete,clock_assessment,deterministic_results_csv,notes
+isolation_forest_study_v1,example_train_a,train,SYNTHETIC,NOMINAL,2026-01-01T00:00:00Z,2026-01-01T01:00:00Z,data/train_a_actions.csv,data/train_a_telemetry.csv,data/train_a_ebpf.csv,true,CONSISTENT,,Operator-supplied offline synthetic capture only

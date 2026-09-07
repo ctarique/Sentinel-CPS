@@ -1,0 +1,20 @@
+{
+  "command_burst_window_sec": 5.0,
+  "max_commands_per_window": 4,
+  "telemetry_flood_window_sec": 2.0,
+  "max_telemetry_rows_per_window": 8,
+  "toggle_window_sec": 10.0,
+  "max_start_stop_toggles_per_window": 3,
+  "locked_state_write_window_sec": 10.0,
+  "locked_write_grace_sec": 0.5,
+  "max_allowed_writes_after_locked": 0,
+  "serial_orphan_window_sec": 2.0,
+  "max_orphan_serial_writes": 2,
+  "replay_like_interval_tolerance_sec": 0.005,
+  "replay_like_sequence_length": 5,
+  "malformed_telemetry_penalty": 80,
+  "orphan_serial_activity_penalty": 60,
+  "anomaly_score_threshold_low": 40,
+  "anomaly_score_threshold_medium": 70,
+  "anomaly_score_threshold_high": 90
+}

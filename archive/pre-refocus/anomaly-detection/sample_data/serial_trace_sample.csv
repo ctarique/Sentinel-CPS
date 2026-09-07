@@ -1,0 +1,14 @@
+timestamp,timestamp_iso,monotonic_ns,pid,comm,syscall,fd,count,retval,fd_path,device_match,notes
+1785746187.860332,2026-08-03T03:36:27.860,100000001,1001,python3,write,3,6,NOT_CAPTURED_V1,/dev/ttyUSB0,True,START command write
+1785746188.110332,2026-08-03T03:36:28.110,100000100,1001,python3,read,3,32,NOT_CAPTURED_V1,/dev/ttyUSB0,True,normal telemetry read
+1785746189.110332,2026-08-03T03:36:29.110,100000101,1001,python3,read,3,32,NOT_CAPTURED_V1,/dev/ttyUSB0,True,normal telemetry read
+1785746190.110332,2026-08-03T03:36:30.110,100000102,1001,python3,read,3,32,NOT_CAPTURED_V1,/dev/ttyUSB0,True,normal telemetry read
+1785746191.110332,2026-08-03T03:36:31.110,100000103,1001,python3,read,3,32,NOT_CAPTURED_V1,/dev/ttyUSB0,True,normal telemetry read
+1785746192.110332,2026-08-03T03:36:32.110,100000104,1001,python3,read,3,32,NOT_CAPTURED_V1,/dev/ttyUSB0,True,normal telemetry read
+1785746224.910332,2026-08-03T03:37:04.910,100002000,1002,python3,write,3,8,NOT_CAPTURED_V1,/dev/ttyUSB0,True,write after locked
+1785746225.910332,2026-08-03T03:37:05.910,100002001,1002,python3,write,3,8,NOT_CAPTURED_V1,/dev/ttyUSB0,True,write after locked
+1785746226.910332,2026-08-03T03:37:06.910,100002002,1002,python3,write,3,8,NOT_CAPTURED_V1,/dev/ttyUSB0,True,write after locked
+1785746242.910332,2026-08-03T03:37:22.910,100003000,2222,rogue_proc,write,5,12,NOT_CAPTURED_V1,/dev/ttyUSB0,True,no nearby gateway action
+1785746243.110332,2026-08-03T03:37:23.110,100003001,2222,rogue_proc,write,5,12,NOT_CAPTURED_V1,/dev/ttyUSB0,True,no nearby gateway action
+1785746243.310332,2026-08-03T03:37:23.310,100003002,2222,rogue_proc,write,5,12,NOT_CAPTURED_V1,/dev/ttyUSB0,True,no nearby gateway action
+1785746243.5103319,2026-08-03T03:37:23.510,100003003,2222,rogue_proc,write,5,12,NOT_CAPTURED_V1,/dev/ttyUSB0,True,no nearby gateway action

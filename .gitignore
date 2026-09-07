@@ -1,44 +1,50 @@
-# Python
+.DS_Store
 __pycache__/
 *.py[cod]
 .venv/
 venv/
-.env
+env/
+.pytest_cache/
+.mypy_cache/
 
-# Runtime data/logs
-logs/*
-!logs/.gitkeep
-gateway/data/*
-!gateway/data/.gitkeep
+# Runtime and generated outputs
+data/
+logs/
+output/
 *.log
-*.csv
 
-# OS/editor
-.DS_Store
-.vscode/
-.idea/
+# Archives and packaging
+*.zip
 
-# Secrets / local config
-*.key
-*.pem
-secrets/
-local_config.*
+# Keep private network details out of Git
+Network/Assets/network_asset_inventory.md
+Network/Firewall/firewall_setup.md
 
-# Temporary import/review folders - never commit
-_import_onedrive_v10/
-_unsanitized_review/
-_sensitive_review/
+# Local runtime configuration
+config.json
 
-# Office temporary files
-~$*
-*.tmp
+# Generated canonical Gateway artifacts
+Packages/Gateway/sentinel-gateway/data/
+Packages/Gateway/sentinel-gateway/data_before_*/
+Packages/Gateway/sentinel-gateway/evidence/
+Packages/Gateway/sentinel-gateway/app.py.pre_performance_*
 
-# Local notes that may contain private lab details
-PRIVATE_NOTES.md
-local_inventory.md
+# Generated synthetic security-pipeline inputs
+Packages/Anomaly Detection/anomaly-detection-v0.1.1/anomaly-detection/sample_data/
+# macOS metadata
+**/.DS_Store
+# Private Sentinel-CPS infrastructure records
+Infrastructure/network/Assets/network_asset_inventory.md
+Infrastructure/network/Firewall/firewall_setup.md
+# Local Gateway backups and evidence
+Software/gateway/app.py.pre_performance_*
+Software/gateway/data_before_performance_*/
+Software/gateway/evidence/
+
+# Local secrets and configuration
+.env
 .env.*
 !.env.example
-docs/evidence/private/
-*.docx
-*.pptx
-host/nftables/*.local.backup
+*.key
+*.pem
+config.json

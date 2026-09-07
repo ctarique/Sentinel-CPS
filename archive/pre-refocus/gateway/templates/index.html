@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sentinel-CPS Gateway Dashboard</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: rgba(30, 41, 59, 0.78);
+            --panel-strong: rgba(15, 23, 42, 0.92);
+            --border: #334155;
+            --muted: #94a3b8;
+            --soft: #cbd5e1;
+            --white: #f8fafc;
+            --sky: #38bdf8;
+            --sky-dark: #0ea5e9;
+            --green: #34d399;
+            --green-dark: #059669;
+            --red: #fb7185;
+            --red-dark: #e11d48;
+            --amber: #fbbf24;
+            --slate: #475569;
+            --indigo: #4f46e5;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; }
+        body {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 32rem),
+                radial-gradient(circle at bottom right, rgba(79, 70, 229, 0.14), transparent 34rem),
+                var(--bg);
+            color: var(--white);
+            padding: 1rem;
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+        .font-mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        .page { width: 100%; max-width: 1180px; margin: 0 auto; }
+        .header {
+            display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem;
+            border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.25rem;
+        }
+        .badge {
+            display: inline-block; color: var(--sky); background: rgba(14, 165, 233, 0.16);
+            border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 0.4rem;
+            padding: 0.25rem 0.55rem; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+        }
+        h1 { font-size: clamp(1.8rem, 4vw, 2.55rem); margin: 0.45rem 0 0; letter-spacing: -0.035em; }
+        h1 span { color: #64748b; font-weight: 300; }
+        p { margin: 0; }
+        .subtext { color: var(--muted); font-size: 0.92rem; max-width: 42rem; margin-top: 0.35rem; }
+        .status-box {
+            display: flex; gap: 1rem; align-items: center; background: rgba(30, 41, 59, 0.86);
+            border: 1px solid var(--border); border-radius: 0.7rem; padding: 0.7rem 0.9rem;
+        }
+        .status-box > div { display: flex; flex-direction: column; white-space: nowrap; }
+        .status-box .label { color: var(--muted); font-size: 0.72rem; }
+        .status-box .value { color: var(--green); font-weight: 800; font-size: 0.9rem; }
+        .divider { width: 1px; height: 2.2rem; background: var(--border); }
+
+        .panel {
+            background: var(--panel); border: 1px solid var(--border); border-radius: 0.85rem;
+            box-shadow: 0 20px 45px rgba(0,0,0,0.2); backdrop-filter: blur(12px);
+        }
+        .arch { padding: 1rem; margin-bottom: 1.25rem; }
+        .arch-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; }
+        .arch-step {
+            background: rgba(15, 23, 42, 0.78); border: 1px solid var(--border); border-radius: 0.55rem;
+            padding: 0.55rem 0.7rem; min-width: 7.4rem;
+        }
+        .arch-step small { color: var(--muted); display: block; font-size: 0.68rem; }
+        .arch-step strong { color: var(--white); font-size: 0.78rem; }
+        .arrow { color: #64748b; font-weight: 900; }
+        .note { color: var(--muted); font-size: 0.78rem; margin-top: 0.75rem; }
+        .pill-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.8rem; }
+        .pill { border: 1px solid var(--border); background: rgba(15, 23, 42, 0.7); border-radius: 999px; padding: 0.25rem 0.55rem; font-size: 0.7rem; color: var(--soft); }
+
+        .grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 1.25rem; }
+        .stack { display: flex; flex-direction: column; gap: 1rem; }
+        .tv-wrapper { position: relative; }
+        .floating-label {
+            position: absolute; top: -0.55rem; left: 1rem; z-index: 4; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 999px; padding: 0.2rem 0.55rem; font-size: 0.68rem; font-weight: 800; color: var(--muted); letter-spacing: 0.08em;
+        }
+        #tv-container {
+            position: relative; width: 100%; height: 440px; background: #020617; border-radius: 0.75rem; overflow: hidden;
+            box-shadow: inset 0 0 25px rgba(255,255,255,0.05), 0 0 0 4px #1e293b, 0 18px 35px rgba(0,0,0,0.45);
+            cursor: crosshair; touch-action: none;
+        }
+        canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+        #track-canvas { z-index: 1; }
+        #telemetry-canvas { z-index: 2; pointer-events: none; }
+        .locked-overlay {
+            position: absolute; inset: 0; z-index: 3; background: rgba(15, 23, 42, 0.88);
+            display: none; align-items: center; justify-content: center; text-align: center; padding: 2rem; backdrop-filter: blur(6px);
+        }
+        .locked-overlay.active { display: flex; }
+        .locked-card h2 { color: var(--red); margin: 0 0 0.5rem; font-size: clamp(1.5rem, 4vw, 2.3rem); }
+        .locked-card p { color: var(--soft); font-size: 0.86rem; }
+
+        .panel-inner { padding: 1rem; }
+        .section-title { font-size: 0.78rem; color: var(--soft); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 850; margin: 0 0 0.75rem; }
+        .boundary-note { padding: 0.75rem 0.9rem; color: var(--soft); font-size: 0.78rem; background: rgba(2, 6, 23, 0.55); border: 1px solid rgba(51, 65, 85, 0.75); border-radius: 0.65rem; }
+        .marker-note { position: absolute; bottom: 0.75rem; left: 0.9rem; right: 0.9rem; z-index: 4; color: var(--muted); background: rgba(2, 6, 23, 0.74); border: 1px solid rgba(51,65,85,0.75); border-radius: 0.55rem; padding: 0.45rem 0.6rem; font-size: 0.68rem; }
+        .boundary-note strong { color: var(--white); }
+        .muted { color: var(--muted); }
+        .controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.65rem; }
+        button {
+            min-height: 2.75rem; border: 1px solid transparent; border-radius: 0.55rem; cursor: pointer; color: white;
+            font-weight: 800; transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s; padding: 0.65rem 0.8rem;
+        }
+        button:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(0,0,0,0.22); }
+        button:active { transform: translateY(1px); }
+        button:disabled { opacity: 0.46; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-green { background: var(--green-dark); border-color: rgba(52, 211, 153, 0.35); }
+        .btn-red { background: var(--red-dark); border-color: rgba(251, 113, 133, 0.35); }
+        .btn-gray { background: var(--slate); border-color: rgba(148, 163, 184, 0.35); }
+        .btn-blue { background: var(--sky-dark); border-color: rgba(56, 189, 248, 0.35); }
+        .btn-indigo { background: var(--indigo); border-color: rgba(129, 140, 248, 0.35); }
+        .btn-slate { background: rgba(15, 23, 42, 0.85); border-color: var(--border); }
+
+        .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+        .metric { background: rgba(15, 23, 42, 0.72); border: 1px solid rgba(51,65,85,0.8); border-radius: 0.6rem; padding: 0.65rem; min-height: 4.35rem; }
+        .metric small { display: block; color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; }
+        .metric strong { display: block; margin-top: 0.25rem; color: var(--green); font-size: 0.95rem; overflow-wrap: anywhere; }
+        .metric strong.warn { color: var(--amber); }
+        .metric strong.danger { color: var(--red); }
+        textarea {
+            width: 100%; min-height: 7.2rem; resize: vertical; border: 1px solid var(--border); border-radius: 0.6rem;
+            background: rgba(15, 23, 42, 0.9); color: var(--soft); padding: 0.75rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.78rem;
+        }
+        input[type="password"] {
+            width: 100%; border: 1px solid var(--border); border-radius: 0.6rem;
+            background: rgba(15, 23, 42, 0.9); color: var(--white); padding: 0.75rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+        .feedback { min-height: 1.25rem; margin-top: 0.6rem; color: var(--muted); font-size: 0.78rem; }
+        .ok { color: var(--green); }
+        .error { color: var(--red); }
+        .event-log { max-height: 11rem; overflow-y: auto; border: 1px solid rgba(51,65,85,0.75); border-radius: 0.6rem; background: rgba(2, 6, 23, 0.62); padding: 0.6rem; font-size: 0.72rem; color: var(--muted); }
+        .event-log div { margin-bottom: 0.32rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .footer { margin-top: 1.25rem; color: #64748b; font-size: 0.72rem; border-top: 1px solid var(--border); padding-top: 0.8rem; }
+
+        @media (max-width: 900px) {
+            .header { align-items: flex-start; flex-direction: column; }
+            .grid { grid-template-columns: 1fr; }
+            .controls { grid-template-columns: 1fr 1fr; }
+            #tv-container { height: 360px; }
+            .status-box { width: 100%; justify-content: space-between; }
+        }
+        @media (max-width: 520px) {
+            .controls, .metric-grid { grid-template-columns: 1fr; }
+            .arch-step { width: 100%; }
+            .arrow { display: none; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <header class="header">
+        <div>
+            <span class="badge">Gateway v0.1.1 / Live Dashboard</span>
+            <h1>Sentinel-CPS <span>Gateway Control Plane</span></h1>
+            <p class="subtext">A Raspberry Pi Flask dashboard for command dispatch, Gateway-side safety state handling, live telemetry readout, and FR-C2 centerline path logging.</p>
+        </div>
+        <div class="status-box font-mono">
+            <div>
+                <span class="label">Gateway Status</span>
+                <span id="gateway-status" class="value">CHECKING</span>
+            </div>
+            <div class="divider"></div>
+            <div>
+                <span class="label">Serial Link</span>
+                <span id="serial-status" class="value">CHECKING</span>
+            </div>
+            <div class="divider"></div>
+            <div>
+                <span class="label">Keepalive</span>
+                <span id="keepalive-status" class="value">CHECKING</span>
+            </div>
+        </div>
+    </header>
+
+    <section class="panel arch">
+        <div class="arch-flow font-mono">
+            <span class="arch-step"><small>Ingress</small><strong>VPN/RDP Bastion</strong></span>
+            <span class="arrow">&rarr;</span>
+            <span class="arch-step"><small>Gateway</small><strong>Pi 4 :8080 Flask</strong></span>
+            <span class="arrow">&rarr;</span>
+            <span class="arch-step"><small>Chokepoint</small><strong>/dev/ttyUSB0 Serial</strong></span>
+            <span class="arrow">&rarr;</span>
+            <span class="arch-step"><small>Hub</small><strong>ESP32 + ESP-NOW Tx</strong></span>
+            <span class="arrow">&rarr;</span>
+            <span class="arch-step"><small>Vehicle</small><strong>ESP32 + Light Sensors</strong></span>
+            <span class="arrow">&rarr;</span>
+            <span class="arch-step"><small>Execution</small><strong>TV-as-a-Track</strong></span>
+        </div>
+        <p class="note">This is the live Gateway UI, not the standalone simulator. Commands are sent to Flask endpoints and logged by the Gateway. The centerline editor records intended FR-C2 path points only; it does not perform lane-boundary containment or drive live navigation in this MVP.</p>
+        <div class="pill-row font-mono">
+            <span class="pill">VAL-01 access-control evidence support</span>
+            <span class="pill">VAL-04 Gateway observability support</span>
+            <span class="pill">VAL-05 STOP/LOCKED evidence support</span>
+        </div>
+    </section>
+
+    <main class="grid">
+        <section class="stack">
+            <div class="tv-wrapper">
+                <div class="floating-label font-mono">CENTERLINE PATH SURFACE</div>
+                <div id="tv-container">
+                    <canvas id="track-canvas"></canvas>
+                    <canvas id="telemetry-canvas"></canvas>
+                    <div class="marker-note">Vehicle marker reflects reported steer/state only. Its canvas position is a local UI preview, not live vehicle position telemetry.</div>
+                    <div id="locked-overlay" class="locked-overlay">
+                        <div class="locked-card font-mono">
+                            <div style="font-size:3.5rem; line-height:1; margin-bottom:0.8rem;">&#128274;</div>
+                            <h2>GATEWAY LOCKED</h2>
+                            <p>The Gateway is locked locally. Check Safety STOP status to distinguish a confirmed vehicle STOP from unknown downstream execution.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="boundary-note">
+                <strong>Navigation model:</strong> this panel mirrors the simulator visually, but uses the thesis-safe FR-C2 wording: centerline/track-following only. It intentionally avoids boundary-containment controls so the dashboard does not imply an out-of-scope navigation model.
+            </div>
+
+            <div class="panel panel-inner">
+                <h2 class="section-title">Centerline Tools</h2>
+                <div class="controls">
+                    <button id="btn-clear" type="button" class="btn-slate">Clear Surface</button>
+                    <button id="btn-default-track" type="button" class="btn-slate">Load Default Track</button>
+                    <button id="btn-save-canvas" type="button" class="btn-blue">Save Drawn Path</button>
+                    <button id="btn-save-json" type="button" class="btn-indigo">Save JSON Path</button>
+                </div>
+                <p class="feedback" id="path-feedback">Draw a centerline on the surface, load the default track, or edit JSON below.</p>
+            </div>
+
+            <div class="panel panel-inner">
+                <h2 class="section-title">Centerline Path Definition (Prototype)</h2>
+                <textarea id="centerline-json">{"centerline_points":[{"x":0.10,"y":0.50},{"x":0.45,"y":0.25},{"x":0.80,"y":0.50}]}</textarea>
+                <p class="note">Payload sent to <span class="font-mono">POST /api/track</span>. Points are normalized from 0.0 to 1.0 so they are independent of screen size.</p>
+            </div>
+        </section>
+
+        <aside class="stack">
+            <div class="panel panel-inner">
+                <h2 class="section-title">Operator Authorization</h2>
+                <input id="operator-token" type="password" autocomplete="off" spellcheck="false" aria-label="Operator token" placeholder="Enter operator token" />
+                <div class="controls" style="grid-template-columns: 1fr 1fr; margin-top:0.65rem;">
+                    <button id="btn-store-token" class="btn-blue" type="button">Use for Session</button>
+                    <button id="btn-clear-token" class="btn-slate" type="button">Clear Session Token</button>
+                </div>
+                <p id="token-feedback" class="feedback">The credential is kept only in this tab's session storage and is sent only with protected requests.</p>
+            </div>
+
+            <div class="panel panel-inner">
+                <h2 class="section-title">Command Dispatch</h2>
+                <div class="controls" style="grid-template-columns: 1fr 1fr;">
+                    <button id="btn-start-command" class="btn-green" type="button" onclick="sendCommand('START')">START</button>
+                    <button class="btn-red" type="button" onclick="sendCommand('STOP')">STOP</button>
+                    <button class="btn-gray" type="button" onclick="sendCommand('RESET')">RESET</button>
+                    <button class="btn-gray" type="button" onclick="sendCommand('STATUS')">STATUS</button>
+                    <button class="btn-gray" type="button" onclick="sendCommand('PING')">PING</button>
+                </div>
+                <p id="cmd-feedback" class="feedback">Commands are routed through Flask and written to the Gateway action log.</p>
+            </div>
+
+            <div class="panel panel-inner">
+                <h2 class="section-title">Live Telemetry</h2>
+                <div class="metric-grid font-mono">
+                    <div class="metric"><small>State</small><strong id="tel-state">UNKNOWN</strong></div>
+                    <div class="metric"><small>Vehicle</small><strong id="tel-vehicle">none</strong></div>
+                    <div class="metric"><small>Source</small><strong id="tel-source">UNKNOWN</strong></div>
+                    <div class="metric"><small>Mode</small><strong id="tel-mode">UNKNOWN</strong></div>
+                    <div class="metric"><small>ADC L/R</small><strong id="tel-adc">0 / 0</strong></div>
+                    <div class="metric"><small>Steering</small><strong id="tel-steer">0.000</strong></div>
+                    <div class="metric"><small>ACK State</small><strong id="ack-state">UNKNOWN</strong></div>
+                    <div class="metric"><small>Last Keepalive</small><strong id="keepalive-last">NONE</strong></div>
+                    <div class="metric"><small>Safety STOP</small><strong id="safety-stop">NORMAL</strong></div>
+                </div>
+            </div>
+
+            <div class="panel panel-inner">
+                <h2 class="section-title">Gateway Evidence Notes</h2>
+                <p class="note" style="margin-top:0;">This UI is safe to screenshot for Chapter 4 only when paired with the actual generated CSV evidence files. Browser event previews below are convenience feedback, not raw thesis evidence.</p>
+                <div id="event-log" class="event-log font-mono" aria-live="polite">
+                    <div><span class="ok">[INIT]</span> Dashboard loaded; waiting for Gateway health.</div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <footer class="footer">
+        Sentinel-CPS Gateway dashboard. Real evidence comes from <span class="font-mono">data/actions.csv</span>, <span class="font-mono">data/telemetry.csv</span>, Gateway serial trace files, separate Pi-side BCC/eBPF trace outputs, and redacted evidence manifests.
+    </footer>
+</div>
+
+<script>
+    const trackCanvas = document.getElementById('track-canvas');
+    const telemetryCanvas = document.getElementById('telemetry-canvas');
+    const trackCtx = trackCanvas.getContext('2d');
+    const telemetryCtx = telemetryCanvas.getContext('2d');
+    const tvContainer = document.getElementById('tv-container');
+    const lockedOverlay = document.getElementById('locked-overlay');
+    const centerlineJson = document.getElementById('centerline-json');
+    const eventLog = document.getElementById('event-log');
+    let centerlinePoints = [];
+    let isDrawing = false;
+    let latestTelemetry = { state: 'UNKNOWN', steer: 0, adc_l: 0, adc_r: 0 };
+    let latestHealth = { mode: 'unknown', connected: false };
+
+    function logEvent(level, message) {
+        const now = new Date().toLocaleTimeString();
+        const color = level === 'OK' ? 'ok' : level === 'ERR' ? 'error' : 'muted';
+        const row = document.createElement('div');
+        row.innerHTML = `<span class="${color}">[${level}]</span> ${now} ${escapeHtml(message)}`;
+        eventLog.prepend(row);
+        while (eventLog.children.length > 24) eventLog.removeChild(eventLog.lastChild);
+    }
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+    }
+
+    function resizeCanvases() {
+        const rect = tvContainer.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        for (const canvas of [trackCanvas, telemetryCanvas]) {
+            canvas.width = Math.floor(rect.width * dpr);
+            canvas.height = Math.floor(rect.height * dpr);
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        redrawTrack();
+        drawTelemetry();
+    }
+
+    function normalizePoint(clientX, clientY) {
+        const rect = tvContainer.getBoundingClientRect();
+        return {
+            x: Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)),
+            y: Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))
+        };
+    }
+
+    function denormalizePoint(pt) {
+        const rect = tvContainer.getBoundingClientRect();
+        return { x: pt.x * rect.width, y: pt.y * rect.height };
+    }
+
+    function syncJsonFromPoints() {
+        centerlineJson.value = JSON.stringify({ centerline_points: centerlinePoints.map(p => ({ x: Number(p.x.toFixed(3)), y: Number(p.y.toFixed(3)) })) }, null, 2);
+    }
+
+    function tryLoadPointsFromJson() {
+        const data = JSON.parse(centerlineJson.value);
+        if (!data || !Array.isArray(data.centerline_points)) throw new Error('Expected centerline_points array.');
+        const pts = data.centerline_points.map((p, i) => {
+            if (typeof p.x !== 'number' || typeof p.y !== 'number') throw new Error(`Point ${i} needs numeric x and y.`);
+            return { x: Math.max(0, Math.min(1, p.x)), y: Math.max(0, Math.min(1, p.y)) };
+        });
+        if (!pts.length) throw new Error('At least one point is required.');
+        centerlinePoints = pts;
+        redrawTrack();
+        return data;
+    }
+
+    function redrawTrack() {
+        const rect = tvContainer.getBoundingClientRect();
+        trackCtx.clearRect(0, 0, rect.width, rect.height);
+        trackCtx.fillStyle = '#020617';
+        trackCtx.fillRect(0, 0, rect.width, rect.height);
+
+        trackCtx.strokeStyle = 'rgba(51, 65, 85, 0.65)';
+        trackCtx.lineWidth = 1;
+        for (let x = 0; x < rect.width; x += 42) {
+            trackCtx.beginPath(); trackCtx.moveTo(x, 0); trackCtx.lineTo(x, rect.height); trackCtx.stroke();
+        }
+        for (let y = 0; y < rect.height; y += 42) {
+            trackCtx.beginPath(); trackCtx.moveTo(0, y); trackCtx.lineTo(rect.width, y); trackCtx.stroke();
+        }
+
+        if (centerlinePoints.length > 0) {
+            trackCtx.lineCap = 'round';
+            trackCtx.lineJoin = 'round';
+            trackCtx.strokeStyle = 'rgba(255,255,255,0.95)';
+            trackCtx.lineWidth = 16;
+            trackCtx.beginPath();
+            centerlinePoints.forEach((pt, index) => {
+                const p = denormalizePoint(pt);
+                if (index === 0) trackCtx.moveTo(p.x, p.y);
+                else trackCtx.lineTo(p.x, p.y);
+            });
+            trackCtx.stroke();
+
+            trackCtx.strokeStyle = 'rgba(56,189,248,0.9)';
+            trackCtx.lineWidth = 2;
+            trackCtx.stroke();
+
+            for (const pt of centerlinePoints) {
+                const p = denormalizePoint(pt);
+                trackCtx.fillStyle = '#38bdf8';
+                trackCtx.beginPath(); trackCtx.arc(p.x, p.y, 4, 0, Math.PI * 2); trackCtx.fill();
+            }
+        }
+        drawTelemetry();
+    }
+
+    function drawTelemetry() {
+        const rect = tvContainer.getBoundingClientRect();
+        telemetryCtx.clearRect(0, 0, rect.width, rect.height);
+        let pos = centerlinePoints.length ? denormalizePoint(centerlinePoints[Math.min(centerlinePoints.length - 1, Math.floor(centerlinePoints.length / 2))]) : { x: rect.width * 0.5, y: rect.height * 0.5 };
+        const state = String(latestTelemetry.state || 'UNKNOWN');
+        const locked = Boolean(latestHealth.gateway_locked) || state.includes('LOCKED');
+        const disconnected = state.includes('DISCONNECTED');
+        const running = state.includes('RUNNING');
+        const color = (locked || disconnected) ? '#fb7185' : running ? '#34d399' : '#38bdf8';
+        const steer = Number(latestTelemetry.steer || 0);
+
+        telemetryCtx.save();
+        telemetryCtx.translate(pos.x, pos.y);
+        telemetryCtx.rotate(Math.max(-0.55, Math.min(0.55, steer)));
+        telemetryCtx.fillStyle = color;
+        telemetryCtx.strokeStyle = '#e2e8f0';
+        telemetryCtx.lineWidth = 2;
+        telemetryCtx.beginPath();
+        telemetryCtx.roundRect(-16, -10, 32, 20, 5);
+        telemetryCtx.fill();
+        telemetryCtx.stroke();
+        telemetryCtx.fillStyle = '#020617';
+        telemetryCtx.fillRect(-8, -13, 16, 4);
+        telemetryCtx.restore();
+
+        telemetryCtx.font = '12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+        telemetryCtx.fillStyle = color;
+        telemetryCtx.fillText(`STATE=${state}`, 14, 24);
+        telemetryCtx.fillStyle = 'rgba(203,213,225,0.86)';
+        telemetryCtx.fillText(`ADC=${latestTelemetry.adc_l || 0}/${latestTelemetry.adc_r || 0}  STEER=${Number(steer).toFixed(3)}`, 14, 44);
+        lockedOverlay.classList.toggle('active', locked);
+    }
+
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+        CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+            this.beginPath();
+            this.moveTo(x + r, y);
+            this.lineTo(x + w - r, y);
+            this.quadraticCurveTo(x + w, y, x + w, y + r);
+            this.lineTo(x + w, y + h - r);
+            this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            this.lineTo(x + r, y + h);
+            this.quadraticCurveTo(x, y + h, x, y + h - r);
+            this.lineTo(x, y + r);
+            this.quadraticCurveTo(x, y, x + r, y);
+            this.closePath();
+            return this;
+        };
+    }
+
+    function loadDefaultTrack(shouldLog = true) {
+        centerlinePoints = [
+            {x:0.08,y:0.52},{x:0.18,y:0.38},{x:0.34,y:0.32},{x:0.50,y:0.50},
+            {x:0.64,y:0.68},{x:0.80,y:0.62},{x:0.92,y:0.46}
+        ];
+        syncJsonFromPoints();
+        redrawTrack();
+        if (shouldLog) logEvent('INFO', 'Default centerline loaded locally. Save it to log through /api/track.');
+    }
+
+    function clearTrack() {
+        centerlinePoints = [];
+        syncJsonFromPoints();
+        redrawTrack();
+        document.getElementById('path-feedback').textContent = 'Centerline surface cleared locally.';
+        logEvent('INFO', 'Centerline surface cleared locally.');
+    }
+
+    tvContainer.addEventListener('pointerdown', (e) => {
+        isDrawing = true;
+        centerlinePoints = [normalizePoint(e.clientX, e.clientY)];
+        syncJsonFromPoints();
+        redrawTrack();
+    });
+    tvContainer.addEventListener('pointermove', (e) => {
+        if (!isDrawing) return;
+        const next = normalizePoint(e.clientX, e.clientY);
+        const prev = centerlinePoints[centerlinePoints.length - 1];
+        const dx = next.x - prev.x;
+        const dy = next.y - prev.y;
+        if (Math.sqrt(dx * dx + dy * dy) > 0.012) {
+            centerlinePoints.push(next);
+            syncJsonFromPoints();
+            redrawTrack();
+        }
+    });
+    window.addEventListener('pointerup', () => {
+        if (!isDrawing) return;
+        isDrawing = false;
+        logEvent('INFO', `Drawn centerline updated locally with ${centerlinePoints.length} points.`);
+    });
+
+    function storedOperatorToken() {
+        try { return window.sessionStorage.getItem('sentinelOperatorToken') || ''; }
+        catch (_) { return ''; }
+    }
+
+    function updateTokenFeedback(message, isError = false) {
+        const feedback = document.getElementById('token-feedback');
+        feedback.className = isError ? 'feedback error' : 'feedback ok';
+        feedback.textContent = message;
+    }
+
+    function storeOperatorToken() {
+        const input = document.getElementById('operator-token');
+        const value = input.value;
+        input.value = '';
+        if (!value) {
+            updateTokenFeedback('Enter a credential before saving it for this session.', true);
+            return;
+        }
+        try {
+            window.sessionStorage.setItem('sentinelOperatorToken', value);
+            updateTokenFeedback('Credential stored for this tab session.');
+        } catch (_) {
+            updateTokenFeedback('Session storage is unavailable in this browser.', true);
+        }
+    }
+
+    function clearOperatorToken() {
+        document.getElementById('operator-token').value = '';
+        try { window.sessionStorage.removeItem('sentinelOperatorToken'); }
+        catch (_) { /* Storage remains unavailable; no credential is displayed. */ }
+        updateTokenFeedback('Credential cleared from this tab session.');
+    }
+
+    async function postJson(url, payload) {
+        const headers = { 'Content-Type': 'application/json' };
+        const operatorToken = storedOperatorToken();
+        if (operatorToken) headers['X-Sentinel-Operator-Token'] = operatorToken;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload)
+        });
+        let data;
+        try { data = await response.json(); }
+        catch (_) { data = { error: 'Response was not valid JSON.' }; }
+        if (!response.ok) {
+            const message = data.error || `HTTP ${response.status}`;
+            throw new Error(message + (data.event_id ? ` | Event: ${data.event_id}` : ''));
+        }
+        return data;
+    }
+
+    async function sendCommand(cmd) {
+        const feedback = document.getElementById('cmd-feedback');
+        feedback.className = 'feedback';
+        feedback.textContent = `Sending ${cmd}...`;
+        try {
+            const data = await postJson('/api/command', { command: cmd });
+            const ok = data.result === 'ACKNOWLEDGED';
+            feedback.className = ok ? 'feedback ok' : 'feedback error';
+            const ackLatency = data.ack_latency_ms == null ? 'n/a' : `${Number(data.ack_latency_ms).toFixed(3)} ms`;
+            const gatewayProcessing = `${Number(data.gateway_processing_ms).toFixed(3)} ms`;
+            const commandTotal = `${Number(data.command_total_ms).toFixed(3)} ms`;
+            feedback.textContent = `Event: ${data.event_id} | Tx: ${data.transaction_id} | ${data.command} | ${data.result} | Gateway=${gatewayProcessing} | ACK=${ackLatency} | Total=${commandTotal} | mode=${data.mode}`;
+            logEvent(ok ? 'OK' : 'ERR', `${cmd} -> ${data.result} (${data.event_id})`);
+            if (data.telemetry) {
+                latestTelemetry = data.telemetry;
+                renderTelemetryValues();
+                drawTelemetry();
+            }
+            updateHealth();
+            updateTelemetry();
+        } catch (err) {
+            feedback.className = 'feedback error';
+            feedback.textContent = `Command failed: ${err.message}`;
+            logEvent('ERR', `${cmd} failed: ${err.message}`);
+        }
+    }
+
+    async function saveCenterlineFromPayload(payload, sourceLabel) {
+        const feedback = document.getElementById('path-feedback');
+        feedback.className = 'feedback';
+        feedback.textContent = 'Saving centerline path...';
+        try {
+            const data = await postJson('/api/track', payload);
+            // Request uses centerline_points as an array; response returns centerline_points as the accepted count.
+            feedback.className = 'feedback ok';
+            feedback.textContent = `Centerline path logged | ${data.centerline_points} points | Event: ${data.event_id}`;
+            logEvent('OK', `${sourceLabel} centerline logged through /api/track (${data.event_id}).`);
+        } catch (err) {
+            feedback.className = 'feedback error';
+            feedback.textContent = `Centerline save failed: ${err.message}`;
+            logEvent('ERR', `Centerline save failed: ${err.message}`);
+        }
+    }
+
+    document.getElementById('btn-save-canvas').addEventListener('click', () => {
+        if (!centerlinePoints.length) {
+            document.getElementById('path-feedback').className = 'feedback error';
+            document.getElementById('path-feedback').textContent = 'Draw or load a centerline before saving.';
+            return;
+        }
+        syncJsonFromPoints();
+        saveCenterlineFromPayload(JSON.parse(centerlineJson.value), 'Drawn');
+    });
+    document.getElementById('btn-save-json').addEventListener('click', () => {
+        try {
+            const payload = tryLoadPointsFromJson();
+            saveCenterlineFromPayload(payload, 'JSON');
+        } catch (err) {
+            document.getElementById('path-feedback').className = 'feedback error';
+            document.getElementById('path-feedback').textContent = `Invalid centerline JSON: ${err.message}`;
+            logEvent('ERR', `Invalid centerline JSON: ${err.message}`);
+        }
+    });
+    document.getElementById('btn-clear').addEventListener('click', clearTrack);
+    document.getElementById('btn-default-track').addEventListener('click', () => loadDefaultTrack(true));
+    document.getElementById('btn-store-token').addEventListener('click', storeOperatorToken);
+    document.getElementById('btn-clear-token').addEventListener('click', clearOperatorToken);
+    document.getElementById('operator-token').addEventListener('keydown', event => {
+        if (event.key === 'Enter') storeOperatorToken();
+    });
+
+    function renderTelemetryValues() {
+        const state = String(latestTelemetry.state || 'UNKNOWN');
+        const locked = state.includes('LOCKED');
+        const disconnected = state.includes('DISCONNECTED');
+        const idleOrUnknown = state.includes('IDLE') || state.includes('UNKNOWN');
+        const stateEl = document.getElementById('tel-state');
+        stateEl.textContent = state;
+        stateEl.className = (locked || disconnected) ? 'danger' : idleOrUnknown ? 'warn' : '';
+
+        const startBtn = document.getElementById('btn-start-command');
+        if (startBtn) {
+            startBtn.disabled = locked;
+            startBtn.title = locked ? 'Gateway is LOCKED after STOP. Use RESET before START.' : 'Send START through the Gateway command API.';
+        }
+
+        document.getElementById('tel-vehicle').textContent = latestTelemetry.vehicle_id || 'none';
+        document.getElementById('tel-source').textContent = latestTelemetry.source || 'UNKNOWN';
+        document.getElementById('tel-mode').textContent = latestHealth.mode || 'UNKNOWN';
+        document.getElementById('tel-adc').textContent = `${latestTelemetry.adc_l ?? 0} / ${latestTelemetry.adc_r ?? 0}`;
+        document.getElementById('tel-steer').textContent = Number(latestTelemetry.steer || 0).toFixed(3);
+        document.getElementById('ack-state').textContent = latestHealth.acknowledged_state || 'UNKNOWN';
+        document.getElementById('keepalive-last').textContent = latestHealth.last_keepalive_result || 'NONE';
+        document.getElementById('safety-stop').textContent = latestHealth.safety_status || 'NORMAL';
+    }
+
+    async function updateHealth() {
+        try {
+            const response = await fetch('/api/health');
+            const data = await response.json();
+            latestHealth = data;
+            const gatewayState = data.gateway_locked ? 'LOCKED' : (data.acknowledged_state || 'UNKNOWN');
+            document.getElementById('gateway-status').textContent = `${String(data.mode || 'unknown').toUpperCase()} | ${gatewayState}`;
+            const transport = String(data.serial_transport || 'unknown').toUpperCase();
+            const connectedText = data.mode === 'mock' ? 'MOCK' : transport;
+            const serialEl = document.getElementById('serial-status');
+            serialEl.textContent = connectedText;
+            serialEl.style.color = data.connected ? 'var(--green)' : (data.mode === 'mock' ? 'var(--amber)' : 'var(--red)');
+            const keepaliveEl = document.getElementById('keepalive-status');
+            keepaliveEl.textContent = data.keepalive_active ? 'ACTIVE' : (data.keepalive_enabled ? 'STANDBY' : 'DISABLED');
+            keepaliveEl.style.color = data.keepalive_active ? 'var(--green)' : 'var(--amber)';
+            renderTelemetryValues();
+        } catch (err) {
+            document.getElementById('gateway-status').textContent = `ERROR`;
+            document.getElementById('serial-status').textContent = 'UNKNOWN';
+            document.getElementById('keepalive-status').textContent = 'UNKNOWN';
+            logEvent('ERR', `Health check failed: ${err.message}`);
+        }
+    }
+
+    async function updateTelemetry() {
+        try {
+            const response = await fetch('/api/telemetry');
+            latestTelemetry = await response.json();
+            renderTelemetryValues();
+            drawTelemetry();
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    window.addEventListener('resize', resizeCanvases);
+    loadDefaultTrack(false);
+    resizeCanvases();
+    updateHealth();
+    updateTelemetry();
+    setInterval(updateTelemetry, 1000);
+    setInterval(updateHealth, 5000);
+</script>
+</body>
+</html>

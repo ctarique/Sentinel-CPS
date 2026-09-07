@@ -1,0 +1,16 @@
+timestamp,event_id,source,command,details,result
+1785746187.910332,evt_normal_start,web_ui,START,User start,SUCCESS
+1785746197.910332,evt_burst_0,web_ui,TRACK_UPDATE,fast update,SUCCESS
+1785746198.0103319,evt_burst_1,web_ui,TRACK_UPDATE,fast update,SUCCESS
+1785746198.110332,evt_burst_2,web_ui,TRACK_UPDATE,fast update,SUCCESS
+1785746198.210332,evt_burst_3,web_ui,TRACK_UPDATE,fast update,SUCCESS
+1785746198.310332,evt_burst_4,web_ui,TRACK_UPDATE,fast update,SUCCESS
+1785746198.410332,evt_burst_5,web_ui,TRACK_UPDATE,fast update,SUCCESS
+1785746212.910332,evt_toggle_0,web_ui,START,rapid toggle test,SUCCESS
+1785746213.910332,evt_toggle_1,web_ui,STOP,rapid toggle test,SUCCESS
+1785746214.910332,evt_toggle_2,web_ui,START,rapid toggle test,SUCCESS
+1785746215.910332,evt_toggle_3,web_ui,STOP,rapid toggle test,SUCCESS
+1785746216.910332,evt_toggle_4,web_ui,START,rapid toggle test,SUCCESS
+1785746217.910332,evt_toggle_5,web_ui,STOP,rapid toggle test,SUCCESS
+1785746222.910332,evt_stop,web_ui,STOP,User stop,SUCCESS
+1785746272.910332,evt_reset,web_ui,RESET,User reset,SUCCESS

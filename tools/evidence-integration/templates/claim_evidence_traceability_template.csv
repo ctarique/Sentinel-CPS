@@ -1,0 +1,2 @@
+claim_id,claim_text,val_target,related_requirement,evidence_id,evidence_type,claim_strength,safe_wording,unsafe_wording_to_avoid,notes
+CLM-VAL04-001,Gateway logs can be correlated with serial-interface metadata during a test window,VAL-04,SR-O1,EVID-VAL04-001,csv+trace,Moderate,Supports timestamp-based correlation during the observed validation run,Captures every serial event,Requires actions.csv telemetry.csv and serial_trace.csv

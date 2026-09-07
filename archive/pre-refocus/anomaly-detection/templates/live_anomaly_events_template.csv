@@ -1,0 +1,1 @@
+schema_version,detector_run_id,detector_instance_id,incident_id,detection_id,operation_epoch,rule_id,event_type,rule_config_sha256,score,severity,condition_transition,source_event_time_utc,detection_time_utc,source_files,evidence_references,input_modes,evidence_class,actionable,mitigation_decision,decision_reason

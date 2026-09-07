@@ -1,0 +1,94 @@
+[
+  {
+    "timestamp": "1000.000000",
+    "timestamp_iso": "1970-01-01T00:16:40.000",
+    "event_type": "COMMAND_BURST",
+    "source_file": "actions.csv",
+    "related_command": "TRACK_UPDATE",
+    "severity": "MEDIUM",
+    "score": "85",
+    "rule_id": "R001",
+    "description": "5 commands observed within 5.0s.",
+    "recommended_response": "Review command source; consider rate limiting or manual STOP if live behavior is unsafe.",
+    "evidence_reference": "burst_1"
+  },
+  {
+    "timestamp": "1100.000000",
+    "timestamp_iso": "1970-01-01T00:18:20.000",
+    "event_type": "REPEATED_START_STOP_TOGGLE",
+    "source_file": "actions.csv",
+    "related_command": "START",
+    "severity": "MEDIUM",
+    "score": "80",
+    "rule_id": "R003",
+    "description": "4 START/STOP commands observed within 10.0s.",
+    "recommended_response": "Review operator behavior; keep system in STOP/LOCKED if physical behavior is unsafe.",
+    "evidence_reference": "toggle_1"
+  },
+  {
+    "timestamp": "1200.000000",
+    "timestamp_iso": "1970-01-01T00:20:00.000",
+    "event_type": "SERIAL_WRITE_AFTER_LOCKED",
+    "source_file": "serial_trace.csv",
+    "related_command": "STOP/LOCKED",
+    "severity": "HIGH",
+    "score": "100",
+    "rule_id": "R004",
+    "description": "2 serial write event(s) observed after STOP/LOCKED marker and 0.5s grace window.",
+    "recommended_response": "Keep system locked; inspect Gateway process and any rogue serial writers.",
+    "evidence_reference": "locked_marker_1200.000"
+  },
+  {
+    "timestamp": "1300.000000",
+    "timestamp_iso": "1970-01-01T00:21:40.000",
+    "event_type": "MALFORMED_TELEMETRY",
+    "source_file": "telemetry.csv",
+    "related_command": "N/A",
+    "severity": "MEDIUM",
+    "score": "80",
+    "rule_id": "R005",
+    "description": "Telemetry row contains non-numeric adc_l, adc_r, or steer value.",
+    "recommended_response": "Drop malformed row; inspect Hub/vehicle telemetry parsing.",
+    "evidence_reference": "telemetry_row_2"
+  },
+  {
+    "timestamp": "1400.000000",
+    "timestamp_iso": "1970-01-01T00:23:20.000",
+    "event_type": "TELEMETRY_FLOOD",
+    "source_file": "telemetry.csv",
+    "related_command": "N/A",
+    "severity": "HIGH",
+    "score": "95",
+    "rule_id": "R002",
+    "description": "9 telemetry rows observed within 2.0s.",
+    "recommended_response": "Review telemetry source; consider STOP if live system behavior is unsafe.",
+    "evidence_reference": "telemetry_row_3"
+  },
+  {
+    "timestamp": "1500.000000",
+    "timestamp_iso": "1970-01-01T00:25:00.000",
+    "event_type": "SERIAL_ACTIVITY_WITHOUT_GATEWAY_ACTION",
+    "source_file": "serial_trace.csv",
+    "related_command": "N/A",
+    "severity": "LOW",
+    "score": "60",
+    "rule_id": "R006",
+    "description": "3 serial write event(s) did not have a Gateway action within \u00b12.0s.",
+    "recommended_response": "Review process ownership and investigate whether non-Gateway code is writing to the serial device.",
+    "evidence_reference": "ebpf_orphan_writes_3"
+  },
+  {
+    "timestamp": "1600.000000",
+    "timestamp_iso": "1970-01-01T00:26:40.000",
+    "event_type": "REPLAY_LIKE_TIMING_PATTERN",
+    "source_file": "telemetry.csv",
+    "related_command": "N/A",
+    "severity": "LOW",
+    "score": "45",
+    "rule_id": "R007",
+    "description": "5 telemetry intervals are nearly identical within \u00b10.005s tolerance.",
+    "recommended_response": "Treat as weak signal only; compare with physical test notes and eBPF trace context.",
+    "evidence_reference": "telemetry_interval_start_12"
+  }
+]
+

@@ -1,0 +1,2 @@
+evidence_id,val_target,date_collected,artifact_type,filename,private_path,public_redacted_path,description,related_requirement,thesis_chapter,figure_table_candidate,claim_supported,limitations,review_status
+EVID-VAL04-001,VAL-04,YYYY-MM-DD,csv,telemetry_run1.csv,/OneDrive/Sentinel-CPS_Evidence_Master/VAL-04_Observability/gateway_csv/,/GitHub/sanitized/optional_path/,Telemetry rows captured during Gateway/Hub validation,FR-G3;SR-O1,Chapter 5,Table 4,Supports correlation between Gateway telemetry and serial activity,Single test window only,Draft

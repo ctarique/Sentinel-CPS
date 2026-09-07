@@ -1,0 +1,2 @@
+timestamp,event_id,source,command,details,result,mode
+1785888000.000000,evt_fixture_boot,fixture,BOOT,synthetic fixture,SUCCESS,mock

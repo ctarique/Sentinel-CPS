@@ -1,0 +1,2 @@
+generated_at,input_file,total_anomalies,max_score,high_severity_count,medium_severity_count,low_severity_count,info_count,triggered_rules,recommended_operator_action
+YYYY-MM-DDTHH:MM:SS,/path/to/anomaly_scores.csv,0,0,0,0,0,0,,OBSERVE_AND_REVIEW

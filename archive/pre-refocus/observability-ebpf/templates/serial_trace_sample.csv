@@ -1,0 +1,4 @@
+timestamp,timestamp_iso,monotonic_ns,pid,comm,syscall,fd,count,retval,fd_path,device_match,notes
+1782000000.123456,2026-06-21T12:00:00.123456,123456789000,1045,python3,write,3,6,NOT_CAPTURED_V1,/dev/ttyUSB0,True,
+1782000000.456789,2026-06-21T12:00:00.456789,123457000000,1045,python3,read,3,32,NOT_CAPTURED_V1,/dev/ttyUSB0,True,
+1782000001.111111,2026-06-21T12:00:01.111111,123458000000,1045,python3,write,3,5,NOT_CAPTURED_V1,/dev/ttyUSB0,True,

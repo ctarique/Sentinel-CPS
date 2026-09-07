@@ -1,0 +1,2 @@
+source_file,first_timestamp_iso,last_timestamp_iso,duration_sec,total_reads,total_writes,bytes_read,bytes_written,target_device_hits,top_processes,notes
+serial_trace_sample.csv,2026-06-21T12:00:00.123456,2026-06-21T12:00:01.111111,0.988,1,2,32,11,3,python3:3,example only

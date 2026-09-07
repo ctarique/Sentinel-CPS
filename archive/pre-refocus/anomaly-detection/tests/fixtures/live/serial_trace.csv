@@ -1,0 +1,2 @@
+timestamp,timestamp_iso,monotonic_ns,pid,comm,syscall,fd,count,retval,fd_path,device_match,notes
+1785888000.200000,2026-08-04T05:00:00.200000Z,1000000,100,fixture,write,3,6,6,/dev/fixture,True,synthetic fixture

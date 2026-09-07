@@ -1,0 +1,4 @@
+filename,sha256_checksum,notes
+anomaly_scores.csv,,Generated from offline scoring
+anomaly_summary.csv,,Generated from anomaly score summary
+val05_incident_report.md,,Generated from offline anomaly report script

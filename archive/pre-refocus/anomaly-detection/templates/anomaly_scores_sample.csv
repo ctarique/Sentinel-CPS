@@ -1,0 +1,2 @@
+timestamp,timestamp_iso,event_type,source_file,related_command,severity,score,rule_id,description,recommended_response,evidence_reference
+1718000010.500000,2026-06-21T12:00:10.500,COMMAND_BURST,actions.csv,TRACK_UPDATE,MEDIUM,85,R001,5 commands observed within 5.0s.,Review command source; consider rate limiting or manual STOP if live behavior is unsafe.,evt_burst_0

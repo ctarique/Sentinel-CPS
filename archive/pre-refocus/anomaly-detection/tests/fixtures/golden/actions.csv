@@ -1,0 +1,11 @@
+timestamp,event_id,source,command,details,result
+1000.0,burst_1,web_ui,TRACK_UPDATE,burst,SUCCESS
+1001.0,burst_2,automation,TRACK_UPDATE,burst,REJECTED
+1002.0,burst_3,web_ui,TRACK_UPDATE,burst,SUCCESS
+1003.0,burst_4,automation,TRACK_UPDATE,burst,REJECTED
+1004.0,burst_5,web_ui,TRACK_UPDATE,burst,SUCCESS
+1100.0,toggle_1,web_ui,START,toggle,SUCCESS
+1101.0,toggle_2,web_ui,STOP,toggle,REJECTED
+1102.0,toggle_3,automation,START,toggle,SUCCESS
+1103.0,toggle_4,automation,STOP,toggle,REJECTED
+1200.0,stop_marker,web_ui,STOP,locked,SUCCESS

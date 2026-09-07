@@ -1,0 +1,2 @@
+timestamp,vehicle_id,adc_l,adc_r,steer,state,source
+1785888000.100000,fixture_vehicle,2000,2000,0.0,IDLE (MOCK),mock_generator

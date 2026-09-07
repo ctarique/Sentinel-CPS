@@ -1,0 +1,5 @@
+filename,sha256_checksum,notes
+serial_trace_<timestamp>.csv,,raw private trace metadata
+serial_trace_summary_<timestamp>.csv,,derived summary
+gateway_ebpf_correlation_<timestamp>.md,,timestamp-based correlation report
+bcc_environment_<timestamp>.txt,,environment readiness output

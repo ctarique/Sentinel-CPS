@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentinel-CPS: Architecture Walkthrough</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; overflow-x: hidden; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* The TV Boundary Surface Container */
+        #tv-container {
+            position: relative;
+            width: 100%;
+            height: 440px;
+            touch-action: none;
+            background-color: #000;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(255,255,255,0.05), 0 0 0 4px #1e293b, 0 10px 30px rgba(0,0,0,0.5);
+            cursor: crosshair;
+        }
+
+        /* Stacked Canvases for performance: Background (Track) and Foreground (Telemetry/Car) */
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
+        #track-canvas { z-index: 1; }
+        #telemetry-canvas { z-index: 2; }
+
+        /* Custom Scrollbar for PID sliders */
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #0ea5e9; cursor: pointer; margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: #334155; border-radius: 2px;
+        }
+
+        .panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid #334155; }
+        .glass-btn { transition: all 0.2s; min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; text-align: center; line-height: 1.15; }
+        .glass-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .glass-btn:active { transform: translateY(1px); }
+        .glass-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+        .mode-btn, .draw-tool-btn, .glass-btn { -webkit-tap-highlight-color: transparent; }
+        .mode-btn:focus-visible, .draw-tool-btn:focus-visible, .glass-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+        @keyframes emergency-flash {
+            0%, 100% { box-shadow: inset 0 0 0 4px #1e293b; }
+            50% { box-shadow: inset 0 0 20px 4px #ef4444; }
+        }
+        .under-attack #tv-container { animation: emergency-flash 0.5s infinite; }
+        .arch-step { background: rgba(15, 23, 42, 0.85); border: 1px solid #334155; border-radius: 0.5rem; padding: 0.55rem 0.7rem; }
+        .arch-arrow { color: #64748b; font-weight: 700; }
+        .evidence-pill { border: 1px solid #334155; background: rgba(15, 23, 42, 0.7); border-radius: 999px; padding: 0.25rem 0.55rem; }
+
+        .mode-btn, .draw-tool-btn { border: 1px solid #334155; background: rgba(15, 23, 42, 0.75); border-radius: 0.5rem; padding: 0.55rem 0.65rem; transition: all 0.2s; min-height: 2.5rem; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.15; }
+        .mode-btn.active, .draw-tool-btn.active { border-color: #38bdf8; background: rgba(14, 165, 233, 0.18); color: #e0f2fe; box-shadow: inset 0 0 0 1px rgba(56,189,248,0.25); }
+        .mode-focus { border-color: rgba(56, 189, 248, 0.55) !important; box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.18), 0 0 24px rgba(14, 165, 233, 0.08); }
+        .control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+        @media (min-width: 768px) { .control-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+        .score-track { height: 0.6rem; background: #1e293b; border-radius: 999px; overflow: hidden; border: 1px solid #334155; }
+        .score-fill { height: 100%; width: 8%; background: linear-gradient(90deg, #22c55e, #f59e0b, #ef4444); transition: width 0.25s ease; }
+        .serial-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .evidence-table th { color: #cbd5e1; font-weight: 700; border-bottom: 1px solid #334155; padding: 0.45rem; text-align: left; }
+        .evidence-table td { border-bottom: 1px solid rgba(51, 65, 85, 0.7); padding: 0.45rem; color: #94a3b8; }
+
+        .evidence-scroll { max-height: 16rem; overflow-y: auto; border: 1px solid rgba(51,65,85,0.5); border-radius: 0.5rem; }
+        @media (max-width: 1023px) { #evidence-table-panel { grid-column: auto; } }
+    
+        @media print {
+            body { background: #0f172a !important; color: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            #tv-container { height: 360px; break-inside: avoid; }
+            .panel, .arch-step { break-inside: avoid; }
+            .evidence-scroll { max-height: 16rem; overflow: hidden; }
+            footer { break-inside: avoid; }
+        }
+</style>
+</head>
+<body class="min-h-screen p-4 md:p-8 flex flex-col items-center">
+
+    <header class="w-full max-w-6xl mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-slate-700 pb-4">
+        <div>
+            <div class="inline-block px-2 py-1 bg-sky-500/20 text-sky-400 text-xs font-bold uppercase tracking-wider rounded mb-2 border border-sky-500/30">Architecture v10.0 / Simulator</div>
+            <h1 class="text-3xl font-bold tracking-tight">Sentinel-CPS <span class="text-slate-500 font-light">Architecture Walkthrough</span></h1>
+            <p class="text-slate-400 text-sm mt-1 max-w-xl">A browser-based walkthrough of the Sentinel-CPS control path: Raspberry Pi Gateway, ESP32 Hub, Smart TV track surface, and simulated STOP response.</p>
+        </div>
+        <div class="flex items-center gap-4 text-sm font-mono bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
+            <div class="flex flex-col">
+                <span class="text-slate-400 text-xs">Gateway Status</span>
+                <span id="gateway-status" class="text-emerald-400 font-bold">SECURE [Simulation Ready]</span>
+            </div>
+            <div class="h-8 w-px bg-slate-600 mx-2"></div>
+            <div class="flex flex-col">
+                <span class="text-slate-400 text-xs">Edge Network</span>
+                <span id="edge-status" class="text-emerald-400 font-bold">ESP-NOW (CCMP)</span>
+            </div>
+        </div>
+    </header>
+
+    <section class="w-full max-w-6xl mb-6 panel p-4 rounded-xl">
+        <div class="flex flex-col gap-3">
+            <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
+                <span class="arch-step"><span class="text-slate-400">Ingress</span><br><span class="text-white">VPN/RDP Bastion</span></span>
+                <span class="arch-arrow">&rarr;</span>
+                <span class="arch-step"><span class="text-slate-400">Gateway</span><br><span class="text-white">Pi 4 :8080 C2</span></span>
+                <span class="arch-arrow">&rarr;</span>
+                <span class="arch-step"><span class="text-slate-400">Chokepoint</span><br><span class="text-white">/dev/ttyUSB0</span></span>
+                <span class="arch-arrow">&rarr;</span>
+                <span class="arch-step"><span class="text-slate-400">Hub</span><br><span class="text-white">ESP32 Bridge</span></span>
+                <span class="arch-arrow">&rarr;</span>
+                <span class="arch-step"><span class="text-slate-400">Edge</span><br><span class="text-white">ESP-NOW CCMP</span></span>
+                <span class="arch-arrow">&rarr;</span>
+                <span class="arch-step"><span class="text-slate-400">Execution</span><br><span class="text-white">TV-as-a-Track</span></span>
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+                This page is a browser-based walkthrough. It does not run real eBPF, fcntl locking, serial control, or ESP-NOW. Use it to explain the architecture; use hardware logs and traces for thesis validation.
+            </p>
+            <div class="flex flex-wrap gap-2 text-[11px] text-slate-300 font-mono">
+                <span class="evidence-pill">VAL-03 map</span>
+                <span class="evidence-pill">VAL-04 map</span>
+                <span class="evidence-pill">VAL-05 map</span>
+            </div>
+            <div id="validation-banner" class="validation-banner text-xs font-mono text-slate-300">
+                <span class="text-sky-400 font-bold">Current Focus:</span> Overview — Gateway path, Smart TV track surface, thesis-default track following, and simulated STOP response.
+            </div>
+        </div>
+    </section>
+
+    <main class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left Column: The TV Boundary Surface -->
+        <div class="lg:col-span-2 space-y-4">
+            <div id="tv-wrapper" class="relative">
+                <div class="absolute -top-3 left-4 bg-slate-900 px-2 text-xs font-bold text-slate-400 tracking-wider z-10 border border-slate-700 rounded-full">SMART TV TRACK SURFACE</div>
+                <div id="tv-container">
+                    <canvas id="track-canvas"></canvas>
+                    <canvas id="telemetry-canvas"></canvas>
+                    
+                    <!-- Severance Overlay (Hidden by default) -->
+                    <div id="severance-overlay" class="absolute inset-0 z-20 bg-slate-900/90 flex flex-col items-center justify-center hidden backdrop-blur-sm">
+                        <span class="text-6xl mb-4">&#128274;</span>
+                        <h2 class="text-3xl font-bold text-rose-500 mb-2">STOP / SEVERANCE SIMULATED</h2>
+                        <p class="text-slate-300 font-mono text-sm text-center max-w-md">Simulated eBPF/AI trigger detected abnormal serial-pattern behavior.<br>Simulated serial lock/severance applied to /dev/ttyUSB0 pathway.<br>Emergency STOP command issued toward the Hub model.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="boundary-note rounded-lg px-3 py-2 text-xs text-slate-300 leading-relaxed">
+                <span class="text-sky-400 font-bold">Navigation model:</span> <span class="text-white font-bold">Track Following</span> is the thesis-default model: the vehicle tries to stay centered over the high-luminance white track. <span class="text-white font-bold">Boundary Containment</span> is included only as an exploratory visual mode where the white line is treated as a wall.
+            </div>
+
+            <div class="panel p-3 rounded-lg">
+                <div class="flex flex-col gap-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Navigation Model</span>
+                        <span id="nav-status" class="text-[11px] font-mono text-emerald-300">TRACK FOLLOWING ACTIVE — THESIS DEFAULT</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+                        <button class="nav-mode-btn active" data-nav="track" type="button">Track Following — Thesis Default</button>
+                        <button class="nav-mode-btn" data-nav="boundary" type="button">Boundary Containment — Exploratory</button>
+                    </div>
+                    <p id="nav-description" class="text-[11px] text-slate-400 leading-relaxed">Default: draw or load a white track, then deploy the vehicle. The simulated sensors treat the white pixels as the road/lane to follow, matching the current FRD/SAD navigation model.</p>
+                </div>
+            </div>
+
+            <div class="panel p-3 rounded-lg">
+                <div class="flex flex-col gap-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Drawing Tool</span>
+                        <span id="tool-status" class="text-[11px] font-mono text-sky-300">CUSTOM DRAW ACTIVE</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] font-mono">
+                        <button class="draw-tool-btn active" data-tool="freehand" type="button">Custom Draw</button>
+                        <button class="draw-tool-btn" data-tool="box" type="button">Box Preset</button>
+                        <button class="draw-tool-btn" data-tool="oval" type="button">Circle/Oval Preset</button>
+                    </div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">Custom Draw is the primary tool. In Track-Following mode, draw a centerline track. In Boundary-Containment mode, draw a closed wall/boundary; the simulator auto-closes freehand shapes when you release the mouse.</p>
+                </div>
+            </div>
+
+            <div class="control-grid">
+                <button id="btn-clear" type="button" class="glass-btn py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded border border-slate-600 text-sm">
+                    &#128465; Clear Surface
+                </button>
+                <button id="btn-default-track" type="button" class="glass-btn py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded border border-slate-600 text-sm">
+                    &#128739; Load Default Track
+                </button>
+                <button id="btn-reset-demo" type="button" class="glass-btn py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded border border-slate-600 text-sm">
+                    &#8635; Reset Demo
+                </button>
+                <button id="btn-run-sequence" type="button" class="glass-btn py-3 bg-indigo-700 hover:bg-indigo-600 text-white font-bold rounded border border-indigo-400 text-sm">
+                    &#9654; Run Demo
+                </button>
+                <button id="btn-deploy" type="button" class="glass-btn py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded border border-sky-400 text-sm">
+                    &#128663; Deploy Vehicle
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Column: Controls and Telemetry -->
+        <div class="space-y-4">
+            
+            <!-- Simulation Scope Panel -->
+            <div class="panel p-4 rounded-xl border-l-4 border-l-sky-500">
+                <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider mb-2">Simulation Scope</h3>
+                <p class="text-xs text-slate-400 leading-relaxed">This is an explanatory browser model. Treat eBPF, AI scoring, fcntl locking, ESP-NOW, and serial actions here as simulated until they are tested on the Raspberry Pi and ESP32 hardware.</p>
+            </div>
+
+            <!-- Thesis Views -->
+            <div class="panel p-4 rounded-xl">
+                <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider mb-3">View</h3>
+                <div class="grid grid-cols-3 gap-2 text-[11px] font-mono mb-3">
+                    <button class="mode-btn active" data-mode="concept">Overview</button>
+                    <button class="mode-btn" data-mode="validation">Validation Map</button>
+                    <button class="mode-btn" data-mode="evidence">Mock Logs</button>
+                </div>
+                <p id="mode-description" class="text-xs text-slate-400 leading-relaxed">Overview shows the control path from Bastion Host to Gateway, Hub, edge vehicle, and TV track surface.</p>
+            </div>
+
+            <!-- PID Tuning Panel -->
+            <div class="panel p-5 rounded-xl">
+                <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 border-b border-slate-700 pb-2">Vehicle Control Model</h3>
+                <p class="text-xs text-slate-400 mb-4">Adjust the simulated vehicle controller. These browser values are only for the walkthrough and are not calibrated ESP32 firmware settings.</p>
+                
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-sky-400">Proportional (Kp)</span>
+                            <span id="val-p" class="text-white">0.030</span>
+                        </div>
+                        <input type="range" id="slider-p" min="0" max="0.1" step="0.001" value="0.030">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-sky-400">Integral (Ki)</span>
+                            <span id="val-i" class="text-white">0.001</span>
+                        </div>
+                        <input type="range" id="slider-i" min="0" max="0.01" step="0.0001" value="0.001">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-sky-400">Derivative (Kd)</span>
+                            <span id="val-d" class="text-white">0.150</span>
+                        </div>
+                        <input type="range" id="slider-d" min="0" max="0.5" step="0.01" value="0.150">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-emerald-400">Vehicle Speed</span>
+                            <span id="val-speed" class="text-white">2.5</span>
+                        </div>
+                        <input type="range" id="slider-speed" min="0.5" max="5.0" step="0.1" value="2.5">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Threat Mitigation Panel -->
+            <div class="panel p-5 rounded-xl border-t-4 border-t-rose-500">
+                <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 border-b border-slate-700 pb-2">Threat Response Model</h3>
+                <p class="text-xs text-slate-400 mb-4">Model an abnormal command pattern at the Gateway-to-Hub path, then trigger the simulated STOP/severance response.</p>
+                
+                <div class="space-y-3">
+                    <button id="btn-attack" type="button" class="glass-btn w-full py-2.5 bg-rose-900/50 hover:bg-rose-800/80 text-rose-200 font-medium rounded border border-rose-700/50 text-sm flex items-center justify-center gap-2 transition-colors">
+                        &#9888; Inject Command Override
+                    </button>
+                    <button id="btn-defend" type="button" class="glass-btn w-full py-2.5 bg-emerald-900/50 hover:bg-emerald-800/80 text-emerald-200 font-bold rounded border border-emerald-700/50 text-sm flex items-center justify-center gap-2 transition-colors opacity-50 cursor-not-allowed" disabled>
+                        &#128274; Simulate STOP / Severance
+                    </button>
+                </div>
+            </div>
+
+            <!-- Anomaly Score Model -->
+            <div id="anomaly-panel" class="panel p-4 rounded-xl font-mono text-xs">
+                <div class="flex justify-between items-end mb-2">
+                    <div>
+                        <div class="text-slate-300 font-bold">SIMULATED_ANOMALY_SCORE</div>
+                        <div class="text-slate-500 text-[10px]">Browser-only score</div>
+                    </div>
+                    <div id="score-label" class="text-emerald-400 font-bold">0.08 NOMINAL</div>
+                </div>
+                <div class="score-track"><div id="score-fill" class="score-fill"></div></div>
+                <p class="text-slate-500 mt-2 leading-relaxed">Normal driving keeps the score low. Override, replay-like, or flood-like behavior raises it toward warning or critical.</p>
+            </div>
+
+            <!-- Architecture Readout -->
+            <div class="panel p-4 rounded-xl font-mono text-xs text-slate-400 space-y-2">
+                <div class="flex justify-between border-b border-slate-700 pb-1"><span>C2_INTERFACE:</span> <span class="text-white">Pi Gateway :8080</span></div>
+                <div class="flex justify-between border-b border-slate-700 pb-1"><span>EDGE_BRIDGE:</span> <span class="text-white">ESP32 Hub Model</span></div>
+                <div class="flex justify-between border-b border-slate-700 pb-1"><span>WIRELESS_PLANE:</span> <span class="text-white">ESP-NOW CCMP Model</span></div>
+                <div class="flex justify-between"><span>DISPLAY_ROLE:</span> <span class="text-white">Port 8080 only / no SSH</span></div>
+            </div>
+
+            <!-- Live Telemetry Readout -->
+            <div id="telemetry-panel" class="panel p-4 rounded-xl font-mono text-xs text-slate-400 space-y-2">
+                <div class="flex justify-between border-b border-slate-700 pb-1"><span>L_LDR_LUMINANCE:</span> <span id="tele-l" class="text-white">000</span></div>
+                <div class="flex justify-between border-b border-slate-700 pb-1"><span>R_LDR_LUMINANCE:</span> <span id="tele-r" class="text-white">000</span></div>
+                <div class="flex justify-between border-b border-slate-700 pb-1"><span>PID_STEERING_OUT:</span> <span id="tele-steer" class="text-white">0.00</span></div>
+                <div class="flex justify-between text-emerald-400"><span>/dev/ttyUSB0_MODEL:</span> <span id="tele-serial">LISTENING</span></div>
+            </div>
+
+            <!-- Mock Serial Packet Stream -->
+            <div id="serial-panel" class="panel p-4 rounded-xl font-mono text-[11px] text-slate-400">
+                <div class="flex justify-between border-b border-slate-700 pb-2 mb-2">
+                    <span class="text-slate-300 font-bold">Serial Packet Preview</span>
+                    <span class="text-slate-500">/dev/ttyUSB0 model</span>
+                </div>
+                <div id="serial-stream" class="space-y-1 max-h-28 overflow-y-auto">
+                    <div class="serial-line"><span class="text-emerald-400">RX</span> TEL:VEH1,L=000,R=000,F=000,MODE=TRACK,STEER=0.000,STATUS=READY</div>
+                </div>
+            </div>
+
+            <!-- Evidence/Event Log -->
+            <div id="event-panel" class="panel p-4 rounded-xl font-mono text-[11px] text-slate-400">
+                <div class="flex justify-between border-b border-slate-700 pb-2 mb-2 gap-2">
+                    <div>
+                        <span class="text-slate-300 font-bold">Event Log Preview</span>
+                        <div class="text-slate-500">actions.csv / telemetry.csv model</div>
+                    </div>
+                    <button id="btn-export" type="button" class="glass-btn px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded border border-slate-600 text-slate-300">Export CSV</button>
+                </div>
+                <div id="event-log" class="space-y-1 max-h-28 overflow-y-auto">
+                    <div><span class="text-emerald-400">[INIT]</span> Simulator loaded; nominal baseline ready.</div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <section id="mock-evidence-section" class="w-full max-w-6xl mt-6 hidden">
+        <div id="evidence-table-panel" class="panel p-4 rounded-xl overflow-hidden">
+            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-3">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider">Mock Log Preview</h3>
+                    <p class="text-xs text-slate-500 mt-1">Example browser-generated rows for explanation only. Do not cite this table as Chapter 4 evidence; real evidence must come from Gateway logs, serial traces, eBPF/BCC output, and ESP32 telemetry.</p>
+                </div>
+                <span class="text-[11px] font-mono text-slate-500">Browser simulation only</span>
+            </div>
+            <div class="evidence-scroll overflow-x-auto">
+                <table class="w-full evidence-table text-xs font-mono">
+                    <thead class="sticky top-0 bg-slate-900/95 backdrop-blur-sm">
+                        <tr><th>Timestamp</th><th>Event Type</th><th>Source</th><th>Value</th><th>Validation</th></tr>
+                    </thead>
+                    <tbody id="evidence-body">
+                        <tr><td>--</td><td>INIT</td><td>Simulator</td><td>Nominal baseline ready</td><td>VAL-03/04/05</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+
+    <footer class="w-full max-w-6xl mt-6 mb-2 pt-4 demo-footer text-[11px] leading-relaxed">
+        Browser-only Sentinel-CPS architecture walkthrough. This page is not Chapter 4 validation evidence. Real validation must come from the Raspberry Pi Gateway, ESP32 Hub, ESP32 vehicle, Smart TV track surface, serial logs, eBPF/BCC traces, and STOP/severance tests.
+    </footer>
+
+    <script>
+        // DOM Elements
+        const tvContainer = document.getElementById('tv-container');
+        const trackCanvas = document.getElementById('track-canvas');
+        const telemetryCanvas = document.getElementById('telemetry-canvas');
+        const trackCtx = trackCanvas.getContext('2d', { willReadFrequently: true }); // Critical for getImageData performance
+        const teleCtx = telemetryCanvas.getContext('2d');
+        const severanceOverlay = document.getElementById('severance-overlay');
+        const gatewayStatus = document.getElementById('gateway-status');
+        const edgeStatus = document.getElementById('edge-status');
+        const serialStatus = document.getElementById('tele-serial');
+        const eventLog = document.getElementById('event-log');
+        const serialStream = document.getElementById('serial-stream');
+        const evidenceBody = document.getElementById('evidence-body');
+        const scoreFill = document.getElementById('score-fill');
+        const scoreLabel = document.getElementById('score-label');
+        const validationBanner = document.getElementById('validation-banner');
+        let evidenceRows = [];
+        let frameCounter = 0;
+        let anomalyScore = 0.08;
+
+        function logEvent(level, message) {
+            if (!eventLog) return;
+            const now = new Date().toLocaleTimeString();
+            const color = level === 'ALERT' ? 'text-rose-400' : level === 'MITIGATE' ? 'text-amber-400' : 'text-emerald-400';
+            const row = document.createElement('div');
+            row.innerHTML = `<span class="${color}">[${level}]</span> ${now} ${message}`;
+            eventLog.prepend(row);
+            while (eventLog.children.length > 8) eventLog.removeChild(eventLog.lastChild);
+        }
+
+        function addEvidence(eventType, source, value, validation) {
+            const now = new Date().toLocaleTimeString();
+            const item = { timestamp: now, eventType, source, value, validation };
+            evidenceRows.unshift(item);
+            if (evidenceRows.length > 12) evidenceRows.pop();
+            if (!evidenceBody) return;
+            evidenceBody.innerHTML = evidenceRows.map(r => `<tr><td>${escapeHtml(r.timestamp)}</td><td>${escapeHtml(r.eventType)}</td><td>${escapeHtml(r.source)}</td><td>${escapeHtml(r.value)}</td><td>${escapeHtml(r.validation)}</td></tr>`).join('');
+        }
+
+        function appendSerial(direction, packet, level='INFO') {
+            if (!serialStream) return;
+            const color = direction === 'TX' ? 'text-sky-400' : direction === 'ALERT' ? 'text-rose-400' : 'text-emerald-400';
+            const row = document.createElement('div');
+            row.className = 'serial-line';
+            row.innerHTML = `<span class="${color}">${direction}</span> ${packet}`;
+            serialStream.prepend(row);
+            while (serialStream.children.length > 8) serialStream.removeChild(serialStream.lastChild);
+        }
+
+        function updateAnomalyScore(score) {
+            anomalyScore = Math.max(0, Math.min(1, score));
+            if (!scoreFill || !scoreLabel) return;
+            scoreFill.style.width = `${Math.round(anomalyScore * 100)}%`;
+            let label = 'NOMINAL', cls = 'text-emerald-400 font-bold';
+            if (anomalyScore >= 0.75) { label = 'CRITICAL'; cls = 'text-rose-500 font-bold animate-pulse'; }
+            else if (anomalyScore >= 0.35) { label = 'WARNING'; cls = 'text-amber-400 font-bold'; }
+            scoreLabel.innerText = `${anomalyScore.toFixed(2)} ${label}`;
+            scoreLabel.className = cls;
+        }
+
+        function updateValidationBanner(html) {
+            if (!validationBanner) return;
+            validationBanner.innerHTML = `<span class="text-sky-400 font-bold">Current Focus:</span> ${html}`;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function setPanelFocus(mode) {
+            ['telemetry-panel', 'serial-panel', 'event-panel', 'evidence-table-panel', 'anomaly-panel'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('mode-focus');
+            });
+            const focusMap = {
+                concept: ['telemetry-panel'],
+                validation: ['telemetry-panel', 'anomaly-panel'],
+                evidence: ['serial-panel', 'event-panel', 'evidence-table-panel']
+            };
+            (focusMap[mode] || []).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('mode-focus');
+            });
+        }
+
+        function setDemoMode(mode, shouldLog = false) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === mode);
+            });
+            const desc = document.getElementById('mode-description');
+            const descriptions = {
+                concept: 'Overview shows the control path from Bastion Host to Gateway, Hub, edge vehicle, and TV track surface.',
+                validation: 'Validation Map shows how the walkthrough relates to VAL-03, VAL-04, and VAL-05 without treating browser output as thesis evidence.',
+                evidence: 'Mock Logs shows an example event/log structure. These browser rows are not Chapter 4 evidence.'
+            };
+            if (desc) desc.innerText = descriptions[mode] || descriptions.concept;
+            setPanelFocus(mode);
+            const evidenceSection = document.getElementById('mock-evidence-section');
+            if (evidenceSection) {
+                evidenceSection.classList.toggle('hidden', mode !== 'evidence');
+            }
+            if (shouldLog) {
+                logEvent('INFO', `View switched to ${mode.toUpperCase()}.`);
+                addEvidence('MODE_CHANGE', 'Simulator UI', mode.toUpperCase(), 'Walkthrough support only');
+            }
+        }
+
+                function scheduleDemoStep(ms, fn) {
+            const timer = setTimeout(fn, ms);
+            activeDemoTimers.push(timer);
+        }
+
+        function runDemoSequence() {
+            resetDemo(true, true);
+            setDemoMode('validation', true);
+            updateValidationBanner('VAL-03 reference — automated demo loaded the default thesis track and will deploy the vehicle model.');
+            scheduleDemoStep(700, () => document.getElementById('btn-deploy').click());
+            scheduleDemoStep(2600, () => {
+                if (!vehicle) document.getElementById('btn-deploy').click();
+                document.getElementById('btn-attack').click();
+            });
+            scheduleDemoStep(4500, () => document.getElementById('btn-defend').click());
+            scheduleDemoStep(5600, () => {
+                setDemoMode('evidence', true);
+                updateValidationBanner('Mock Logs — review the example action log, serial packet preview, anomaly score, and STOP/severance event. Not Chapter 4 evidence.');
+            });
+        }
+
+        // Sizing
+        let width, height;
+        function resizeCanvases() {
+            width = tvContainer.clientWidth;
+            height = tvContainer.clientHeight;
+            trackCanvas.width = width;
+            trackCanvas.height = height;
+            telemetryCanvas.width = width;
+            telemetryCanvas.height = height;
+            trackCtx.fillStyle = '#000000';
+            trackCtx.fillRect(0, 0, width, height);
+            if (currentLaneState === 'default') drawDefaultLane(false);
+        }
+        window.addEventListener('resize', resizeCanvases);
+
+        // State Variables
+        let isDrawing = false;
+        let vehicle = null;
+        let animationId = null;
+        let spawnPoint = { x: 50, y: 250 }; // Default spawn
+        let startAngle = 0;
+        let isUnderAttack = false;
+        let isSevered = false;
+        let currentLaneState = 'default';
+        let boundaryDrawPoints = [];
+        let currentDrawTool = 'freehand';
+        let currentNavMode = 'track';
+        let drawStartPoint = null;
+        let containmentBreachCount = 0;
+        let currentMode = 'concept';
+        let activeDemoTimers = [];
+
+        // PID Variables (Linked to UI)
+        let Kp = 0.030, Ki = 0.001, Kd = 0.150, baseSpeed = 2.5;
+
+        // Setup Sliders
+        const setupSlider = (id, valId, variableSetter) => {
+            const slider = document.getElementById(id);
+            const valDisplay = document.getElementById(valId);
+            slider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                valDisplay.innerText = val.toFixed(id === 'slider-speed' ? 1 : 3);
+                variableSetter(val);
+            });
+        };
+        setupSlider('slider-p', 'val-p', v => Kp = v);
+        setupSlider('slider-i', 'val-i', v => Ki = v);
+        setupSlider('slider-d', 'val-d', v => Kd = v);
+        setupSlider('slider-speed', 'val-speed', v => { baseSpeed = v; if(vehicle) vehicle.speed = v; });
+
+        function clearTrack(shouldLog = true) {
+            trackCtx.fillStyle = '#000000'; // Pure black for 0 luminance
+            trackCtx.fillRect(0, 0, width, height);
+            spawnPoint = null;
+            boundaryDrawPoints = [];
+            currentLaneState = 'blank';
+            if (shouldLog) {
+                logEvent('INFO', 'TV track surface cleared; drawing state reset.');
+                addEvidence('SURFACE_CLEAR', 'Lane/Boundary Builder', 'Track surface reset to black baseline', 'Walkthrough support only');
+                updateValidationBanner(currentNavMode === 'track' ? 'VAL-03 reference — track surface cleared and ready for a user-drawn centerline track.' : 'Exploratory mode — track surface cleared and ready for a user-drawn containment boundary.');
+            }
+        }
+
+        function drawDefaultLane(shouldLog = true) {
+            trackCtx.fillStyle = '#000000';
+            trackCtx.fillRect(0, 0, width, height);
+            trackCtx.strokeStyle = '#FFFFFF';
+            trackCtx.lineWidth = 24;
+            trackCtx.lineCap = 'round';
+            trackCtx.lineJoin = 'round';
+            trackCtx.beginPath();
+
+            if (currentNavMode === 'track') {
+                // Thesis-default behavior: a high-luminance track centerline on a low-luminance background.
+                trackCtx.moveTo(55, height / 2);
+                trackCtx.bezierCurveTo(width * 0.28, height * 0.12, width * 0.58, height * 0.88, width - 55, height / 2);
+                trackCtx.stroke();
+                spawnPoint = { x: 55, y: height / 2 };
+                startAngle = 0;
+                if (shouldLog) {
+                    logEvent('INFO', 'Default thesis track loaded for track-following demonstration.');
+                    appendSerial('TX', 'CMD:SET_TRACK,SHAPE=DEFAULT_CURVE,DISPLAY=TV_TRACK_SURFACE');
+                    addEvidence('TRACK_LOAD', 'Lane Builder', 'Default high-luminance track rendered', 'VAL-03 reference only');
+                    updateValidationBanner('VAL-03 reference — default track rendered; vehicle model follows the white centerline. Real validation still requires hardware evidence.');
+                }
+            } else {
+                // Exploratory behavior: a high-luminance containment boundary/wall.
+                const marginX = Math.max(55, width * 0.08);
+                const marginY = Math.max(45, height * 0.10);
+                const boxW = width - marginX * 2;
+                const boxH = height - marginY * 2;
+                const r = Math.min(70, boxW * 0.12, boxH * 0.18);
+                trackCtx.moveTo(marginX + r, marginY);
+                trackCtx.lineTo(marginX + boxW - r, marginY);
+                trackCtx.quadraticCurveTo(marginX + boxW, marginY, marginX + boxW, marginY + r);
+                trackCtx.lineTo(marginX + boxW, marginY + boxH - r);
+                trackCtx.quadraticCurveTo(marginX + boxW, marginY + boxH, marginX + boxW - r, marginY + boxH);
+                trackCtx.lineTo(marginX + r, marginY + boxH);
+                trackCtx.quadraticCurveTo(marginX, marginY + boxH, marginX, marginY + boxH - r);
+                trackCtx.lineTo(marginX, marginY + r);
+                trackCtx.quadraticCurveTo(marginX, marginY, marginX + r, marginY);
+                trackCtx.closePath();
+                trackCtx.stroke();
+                spawnPoint = { x: width / 2, y: height / 2 };
+                startAngle = -0.15;
+                if (shouldLog) {
+                    logEvent('INFO', 'Default exploratory containment boundary loaded.');
+                    appendSerial('TX', 'CMD:SET_BOUNDARY,SHAPE=ROUNDED_RECT,DISPLAY=TV_TRACK_SURFACE');
+                    addEvidence('BOUNDARY_LOAD', 'Boundary Builder', 'Exploratory containment boundary rendered', 'Exploratory mode only');
+                    updateValidationBanner('Exploratory mode — boundary containment visualized. This is not the current thesis-default navigation model.');
+                }
+            }
+            boundaryDrawPoints = [];
+            currentLaneState = 'default';
+        }
+
+        function drawPresetShape(tool, shouldLog = true) {
+            // Box/Oval buttons now immediately render a visible preset, while still supporting drag-to-size drawing.
+            trackCtx.fillStyle = '#000000';
+            trackCtx.fillRect(0, 0, width, height);
+            teleCtx.clearRect(0, 0, width, height);
+
+            const marginX = Math.max(65, width * 0.10);
+            const marginY = Math.max(55, height * 0.12);
+            const start = { x: marginX, y: marginY };
+            const end = { x: width - marginX, y: height - marginY };
+            drawBoundaryShape(trackCtx, start, end, tool, false);
+
+            if (currentNavMode === 'track') {
+                spawnPoint = { x: width / 2, y: marginY };
+                startAngle = 0;
+                appendSerial('TX', `CMD:SET_TRACK,SHAPE=${tool.toUpperCase()}_PRESET,SPAWN=${Math.round(spawnPoint.x)}:${Math.round(spawnPoint.y)}`);
+                if (shouldLog) {
+                    logEvent('INFO', `${tool.toUpperCase()} preset track loaded for thesis-default track following.`);
+                    addEvidence('TRACK_PRESET_LOAD', 'Lane Builder', `${tool} preset track rendered; mode=track`, 'VAL-03 reference only');
+                    updateValidationBanner('VAL-03 reference — preset track loaded; deploy the vehicle model to follow the high-luminance path.');
+                }
+            } else {
+                spawnPoint = { x: width / 2, y: height / 2 };
+                startAngle = -0.15;
+                appendSerial('TX', `CMD:SET_BOUNDARY,SHAPE=${tool.toUpperCase()}_PRESET,SPAWN=${Math.round(spawnPoint.x)}:${Math.round(spawnPoint.y)}`);
+                if (shouldLog) {
+                    logEvent('INFO', `${tool.toUpperCase()} preset containment boundary loaded in exploratory mode.`);
+                    addEvidence('BOUNDARY_PRESET_LOAD', 'Boundary Builder', `${tool} preset boundary rendered; mode=boundary`, 'Exploratory mode only');
+                    updateValidationBanner('Exploratory mode — preset containment boundary loaded. This remains supplemental and is not the thesis-default navigation model.');
+                }
+            }
+
+            boundaryDrawPoints = [];
+            currentLaneState = `${tool}-preset`;
+        }
+
+        function clearDemoTimers() {
+            activeDemoTimers.forEach(timer => clearTimeout(timer));
+            activeDemoTimers = [];
+        }
+
+        function resetTelemetryReadouts() {
+            document.getElementById('tele-l').innerText = '000';
+            document.getElementById('tele-r').innerText = '000';
+            document.getElementById('tele-steer').innerText = '0.00';
+        }
+
+        function resetDemo(loadDefault = true, clearEvidence = true) {
+            clearDemoTimers();
+            vehicle = null;
+            teleCtx.clearRect(0, 0, width, height);
+            resetTelemetryReadouts();
+            resetThreatState();
+            if (clearEvidence) {
+                evidenceRows = [];
+                evidenceBody.innerHTML = '<tr><td>--</td><td>INIT</td><td>Simulator</td><td>Nominal baseline ready</td><td>VAL-03/04/05</td></tr>';
+                eventLog.innerHTML = '<div><span class="text-emerald-400">[INIT]</span> Simulator loaded; nominal baseline ready.</div>';
+                serialStream.innerHTML = '<div class="serial-line"><span class="text-emerald-400">RX</span> TEL:VEH1,L=000,R=000,F=000,MODE=TRACK,STEER=0.000,STATUS=READY</div>';
+            }
+            if (loadDefault) drawDefaultLane(false); else clearTrack(false);
+            setDemoMode('concept');
+            logEvent('INFO', 'Demo reset to clean nominal state.');
+            addEvidence('RESET_DEMO', 'Simulator UI', loadDefault ? 'Default track restored' : 'Blank track surface restored', 'Walkthrough support');
+            updateValidationBanner('Overview — Gateway path, Smart TV track surface, thesis-default track following, and simulated STOP response.');
+        }
+
+        function getMousePos(evt) {
+            const rect = telemetryCanvas.getBoundingClientRect();
+            return {
+                x: evt.clientX - rect.left,
+                y: evt.clientY - rect.top
+            };
+        }
+
+        function drawBoundaryShape(ctx, start, end, tool, preview = false) {
+            const x = Math.min(start.x, end.x);
+            const y = Math.min(start.y, end.y);
+            const w = Math.abs(end.x - start.x);
+            const h = Math.abs(end.y - start.y);
+            if (w < 8 || h < 8) return;
+            ctx.save();
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = preview ? 4 : 24;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            if (preview) ctx.setLineDash([8, 6]);
+            ctx.beginPath();
+            if (tool === 'oval') {
+                ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+            } else {
+                ctx.rect(x, y, w, h);
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        telemetryCanvas.addEventListener('mousedown', (e) => {
+            if(isSevered) return;
+            isDrawing = true;
+            const pos = getMousePos(e);
+            currentLaneState = 'custom';
+            drawStartPoint = pos;
+            boundaryDrawPoints = [pos];
+            const modelLabel = currentNavMode === 'track' ? 'track centerline' : 'containment boundary';
+            updateValidationBanner(currentNavMode === 'track'
+                ? `VAL-03 reference — ${currentDrawTool.toUpperCase()} track is being drawn on the Smart TV surface.`
+                : `Exploratory mode — ${currentDrawTool.toUpperCase()} containment boundary is being drawn on the Smart TV surface.`);
+            logEvent('INFO', `Builder started with ${currentDrawTool.toUpperCase()} tool in ${currentNavMode.toUpperCase()} mode.`);
+            addEvidence(currentNavMode === 'track' ? 'TRACK_DRAW_START' : 'BOUNDARY_DRAW_START', 'Lane/Boundary Builder', `mode=${currentNavMode}; tool=${currentDrawTool}; start=(${Math.round(pos.x)},${Math.round(pos.y)})`, currentNavMode === 'track' ? 'VAL-03 reference only' : 'Exploratory mode only');
+
+            if (currentDrawTool === 'freehand') {
+                trackCtx.beginPath();
+                trackCtx.moveTo(pos.x, pos.y);
+                if (currentNavMode === 'track') {
+                    spawnPoint = { x: pos.x, y: pos.y };
+                }
+            }
+        });
+
+        telemetryCanvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing || isSevered) return;
+            const pos = getMousePos(e);
+            boundaryDrawPoints.push(pos);
+
+            if (currentDrawTool === 'freehand') {
+                // High-luminance pixels are interpreted according to the selected navigation model.
+                trackCtx.lineTo(pos.x, pos.y);
+                trackCtx.strokeStyle = '#FFFFFF';
+                trackCtx.lineWidth = 24;
+                trackCtx.lineCap = 'round';
+                trackCtx.lineJoin = 'round';
+                trackCtx.stroke();
+                if (currentNavMode === 'track' && boundaryDrawPoints.length === 2) {
+                    const dx = pos.x - drawStartPoint.x;
+                    const dy = pos.y - drawStartPoint.y;
+                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) startAngle = Math.atan2(dy, dx);
+                }
+            } else {
+                teleCtx.clearRect(0, 0, width, height);
+                drawBoundaryShape(teleCtx, drawStartPoint, pos, currentDrawTool, true);
+            }
+        });
+
+        function finishBoundaryDraw(e) {
+            if (!isDrawing) return;
+            isDrawing = false;
+            const endPos = e && e.clientX !== undefined ? getMousePos(e) : boundaryDrawPoints[boundaryDrawPoints.length - 1];
+
+            if (currentDrawTool === 'freehand') {
+                if (currentNavMode === 'boundary' && boundaryDrawPoints.length > 2) {
+                    const first = boundaryDrawPoints[0];
+                    trackCtx.lineTo(first.x, first.y);
+                    trackCtx.stroke();
+                }
+                if (boundaryDrawPoints.length > 1) {
+                    const xs = boundaryDrawPoints.map(p => p.x);
+                    const ys = boundaryDrawPoints.map(p => p.y);
+                    const minX = Math.min(...xs), maxX = Math.max(...xs);
+                    const minY = Math.min(...ys), maxY = Math.max(...ys);
+                    spawnPoint = currentNavMode === 'track' ? boundaryDrawPoints[0] : { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+                }
+            } else if (drawStartPoint && endPos) {
+                teleCtx.clearRect(0, 0, width, height);
+                drawBoundaryShape(trackCtx, drawStartPoint, endPos, currentDrawTool, false);
+                if (currentNavMode === 'track') {
+                    spawnPoint = { x: drawStartPoint.x, y: drawStartPoint.y };
+                    startAngle = Math.atan2(endPos.y - drawStartPoint.y, endPos.x - drawStartPoint.x);
+                } else {
+                    spawnPoint = { x: (drawStartPoint.x + endPos.x) / 2, y: (drawStartPoint.y + endPos.y) / 2 };
+                    startAngle = -0.2;
+                }
+            }
+
+            if (spawnPoint) {
+                const eventType = currentNavMode === 'track' ? 'TRACK_DRAW_COMPLETE' : 'BOUNDARY_DRAW_COMPLETE';
+                const value = `${currentDrawTool}; mode=${currentNavMode}; spawn=(${Math.round(spawnPoint.x)},${Math.round(spawnPoint.y)})`;
+                logEvent('INFO', `${currentNavMode === 'track' ? 'Track' : 'Boundary'} drawing completed; vehicle spawn point set.`);
+                appendSerial('TX', currentNavMode === 'track'
+                    ? `CMD:SET_TRACK,SHAPE=${currentDrawTool.toUpperCase()},SPAWN=${Math.round(spawnPoint.x)}:${Math.round(spawnPoint.y)}`
+                    : `CMD:SET_BOUNDARY,SHAPE=${currentDrawTool.toUpperCase()},SPAWN=${Math.round(spawnPoint.x)}:${Math.round(spawnPoint.y)}`);
+                addEvidence(eventType, 'Lane/Boundary Builder', value, currentNavMode === 'track' ? 'VAL-03 reference only' : 'Exploratory mode only');
+                updateValidationBanner(currentNavMode === 'track'
+                    ? 'VAL-03 reference — custom track completed; deploy the vehicle model to follow the high-luminance path.'
+                    : 'Exploratory mode — custom containment boundary completed; deploy the vehicle inside the user-drawn boundary.');
+            }
+        }
+
+        telemetryCanvas.addEventListener('mouseup', finishBoundaryDraw);
+        telemetryCanvas.addEventListener('mouseleave', finishBoundaryDraw);
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            clearDemoTimers();
+            clearTrack();
+            if (vehicle) vehicle = null;
+            teleCtx.clearRect(0, 0, width, height);
+            resetTelemetryReadouts();
+            startAngle = 0;
+            resetThreatState();
+            logEvent('INFO', 'Boundary surface cleared; simulation state returned to nominal baseline.');
+        });
+
+        document.getElementById('btn-default-track').addEventListener('click', () => {
+            clearDemoTimers();
+            if (vehicle) vehicle = null;
+            teleCtx.clearRect(0, 0, width, height);
+            resetTelemetryReadouts();
+            resetThreatState();
+            drawDefaultLane(true);
+        });
+
+        document.getElementById('btn-reset-demo').addEventListener('click', () => {
+            resetDemo(true, true);
+        });
+
+        function normalizeAngle(angle) {
+            while (angle > Math.PI) angle -= Math.PI * 2;
+            while (angle < -Math.PI) angle += Math.PI * 2;
+            return angle;
+        }
+
+        class ESP32Vehicle {
+            constructor(x, y, angle) {
+                this.x = x;
+                this.y = y;
+                this.angle = angle;
+                this.speed = baseSpeed;
+                
+                // Physical properties
+                this.width = 30;
+                this.length = 40;
+                this.sensorOffset = 18; // Distance ahead of center
+                this.sensorSpread = 12; // Distance left/right from center
+                
+                // PID State
+                this.integral = 0;
+                this.lastError = 0;
+                this.steering = 0;
+
+                // Telemetry
+                this.leftLum = 0;
+                this.rightLum = 0;
+                this.frontLum = 0;
+            }
+
+            readLuminance(x, y) {
+                // Bounds check
+                if (x < 0 || x >= width || y < 0 || y >= height) return 0;
+                // Read exact pixel data from the track canvas
+                const pixel = trackCtx.getImageData(x, y, 1, 1).data;
+                return pixel[0]; // Red channel (0-255) represents luminance since track is grayscale
+            }
+
+            update() {
+                if (this.speed === 0) return; // STOP state
+
+                const leftX = this.x + Math.cos(this.angle) * this.sensorOffset - Math.sin(this.angle) * this.sensorSpread;
+                const leftY = this.y + Math.sin(this.angle) * this.sensorOffset + Math.cos(this.angle) * this.sensorSpread;
+                const rightX = this.x + Math.cos(this.angle) * this.sensorOffset + Math.sin(this.angle) * this.sensorSpread;
+                const rightY = this.y + Math.sin(this.angle) * this.sensorOffset - Math.cos(this.angle) * this.sensorSpread;
+                const frontX = this.x + Math.cos(this.angle) * (this.sensorOffset + 12);
+                const frontY = this.y + Math.sin(this.angle) * (this.sensorOffset + 12);
+
+                this.leftLum = this.readLuminance(leftX, leftY);
+                this.rightLum = this.readLuminance(rightX, rightY);
+                this.frontLum = this.readLuminance(frontX, frontY);
+
+                document.getElementById('tele-l').innerText = this.leftLum.toString().padStart(3, '0');
+                document.getElementById('tele-r').innerText = this.rightLum.toString().padStart(3, '0');
+
+                let error;
+                if (currentNavMode === 'track') {
+                    // Thesis-default line/track-following model: bright pixels are the track to follow.
+                    error = this.leftLum - this.rightLum;
+                    if (this.leftLum === 0 && this.rightLum === 0) {
+                        error = this.lastError > 0 ? 255 : -255;
+                    }
+                } else {
+                    // Exploratory boundary-containment model: bright pixels are walls to avoid.
+                    const sideError = this.rightLum - this.leftLum;
+                    const boundarySignal = Math.max(this.leftLum, this.rightLum, this.frontLum);
+                    const centerAngle = Math.atan2((height / 2) - this.y, (width / 2) - this.x);
+                    let centerCorrection = normalizeAngle(centerAngle - this.angle);
+                    centerCorrection = Math.max(-1, Math.min(1, centerCorrection));
+                    error = sideError;
+                    if (boundarySignal > 80) {
+                        error += centerCorrection * 255;
+                        this.integral *= 0.6;
+                    } else {
+                        error += Math.sin(performance.now() / 900) * 35 + centerCorrection * 35;
+                    }
+                }
+
+                const P = error * Kp;
+                this.integral += error;
+                if (this.integral > 1000) this.integral = 1000;
+                if (this.integral < -1000) this.integral = -1000;
+                const I = this.integral * Ki;
+                const D = (error - this.lastError) * Kd;
+                this.steering = (P + I + D) * 0.01;
+                this.steering = Math.max(-0.25, Math.min(0.25, this.steering));
+
+                if (isUnderAttack) {
+                    this.steering = (Math.random() - 0.5) * 0.5;
+                }
+
+                this.lastError = error;
+                document.getElementById('tele-steer').innerText = this.steering.toFixed(3);
+                if (!isSevered) {
+                    const brightSignal = Math.max(this.leftLum, this.rightLum, this.frontLum);
+                    const base = isUnderAttack ? 0.82 + Math.random() * 0.15 : 0.06 + Math.min(0.25, Math.abs(this.steering) * 0.9) + (currentNavMode === 'boundary' && brightSignal > 180 ? 0.16 : 0);
+                    updateAnomalyScore(base);
+                }
+
+                this.angle += this.steering;
+                let nextX = this.x + Math.cos(this.angle) * this.speed;
+                let nextY = this.y + Math.sin(this.angle) * this.speed;
+
+                if (currentNavMode === 'boundary' && !isUnderAttack) {
+                    const hitBoundary = this.readLuminance(nextX, nextY) > 90 || nextX < 8 || nextX > width - 8 || nextY < 8 || nextY > height - 8;
+                    if (hitBoundary) {
+                        containmentBreachCount++;
+                        const returnAngle = Math.atan2((height / 2) - this.y, (width / 2) - this.x);
+                        this.angle = returnAngle + (Math.random() - 0.5) * 0.45;
+                        nextX = this.x + Math.cos(this.angle) * this.speed;
+                        nextY = this.y + Math.sin(this.angle) * this.speed;
+                        if (containmentBreachCount % 6 === 1) {
+                            logEvent('INFO', 'Boundary contact detected in exploratory mode; vehicle steered back inside.');
+                            addEvidence('BOUNDARY_AVOID', 'Vehicle Model', 'bright boundary detected; containment correction applied', 'Exploratory mode only');
+                        }
+                    }
+                }
+
+                this.x = Math.max(10, Math.min(width - 10, nextX));
+                this.y = Math.max(10, Math.min(height - 10, nextY));
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                // Draw Chassis
+                ctx.fillStyle = '#0ea5e9'; // Sky blue
+                ctx.shadowColor = '#0284c7';
+                ctx.shadowBlur = 10;
+                ctx.fillRect(-this.length/2, -this.width/2, this.length, this.width);
+
+                // Draw Circuit details
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(-this.length/2 + 5, -this.width/2 + 5, this.length - 10, this.width - 10);
+
+                // Draw Sensors (Visual representation)
+                ctx.beginPath();
+                ctx.arc(this.sensorOffset, -this.sensorSpread, 3, 0, Math.PI * 2);
+                ctx.fillStyle = this.leftLum > 100 ? '#f59e0b' : '#4ade80'; // Amber if boundary detected, green if clear
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(this.sensorOffset, this.sensorSpread, 3, 0, Math.PI * 2);
+                ctx.fillStyle = this.rightLum > 100 ? '#f59e0b' : '#4ade80';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(this.sensorOffset + 12, 0, 3, 0, Math.PI * 2);
+                ctx.fillStyle = this.frontLum > 100 ? '#f59e0b' : '#4ade80';
+                ctx.fill();
+
+                // Sensor Rays (Laser effect)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(this.length/2, -this.sensorSpread); ctx.lineTo(this.sensorOffset, -this.sensorSpread); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(this.length/2, this.sensorSpread); ctx.lineTo(this.sensorOffset, this.sensorSpread); ctx.stroke();
+
+                ctx.restore();
+            }
+        }
+
+        function gameLoop() {
+            teleCtx.clearRect(0, 0, width, height);
+
+            if (vehicle) {
+                vehicle.update();
+                vehicle.draw(teleCtx);
+                frameCounter++;
+                if (frameCounter % 30 === 0 && !isSevered) {
+                    const pkt = `TEL:VEH1,L=${vehicle.leftLum},R=${vehicle.rightLum},F=${vehicle.frontLum},MODE=${currentNavMode === 'track' ? 'TRACK' : 'BOUNDARY'},STEER=${vehicle.steering.toFixed(3)},SCORE=${anomalyScore.toFixed(2)}`;
+                    appendSerial(isUnderAttack ? 'ALERT' : 'RX', pkt);
+                    addEvidence(isUnderAttack ? 'SERIAL_ANOMALY' : 'TELEMETRY', 'Serial Model', pkt, isUnderAttack ? 'VAL-04/VAL-05' : 'VAL-03/VAL-04');
+                }
+            }
+
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        document.getElementById('btn-deploy').addEventListener('click', () => {
+            if (isSevered) return;
+            // Spawn at recorded start point or center
+            const startX = spawnPoint ? spawnPoint.x : width / 2;
+            const startY = spawnPoint ? spawnPoint.y : height / 2;
+            
+            vehicle = new ESP32Vehicle(startX, startY, startAngle);
+            logEvent('INFO', 'ESP32 vehicle model deployed on the TV track surface.');
+            appendSerial('TX', `CMD:DEPLOY,VEH=VEH1,MODE=${currentNavMode === 'track' ? 'TRACK' : 'BOUNDARY'}`);
+            addEvidence('DEPLOY', 'C2 Dashboard', 'ESP32 vehicle model placed on TV track surface', 'VAL-03');
+            updateValidationBanner('VAL-03 reference — ESP32 vehicle model deployed; luminance telemetry is active for the selected navigation model.');
+            if (!animationId) gameLoop();
+        });
+
+        // Attack & Defense Interactions
+        const btnAttack = document.getElementById('btn-attack');
+        const btnDefend = document.getElementById('btn-defend');
+
+        function resetThreatState() {
+            isUnderAttack = false;
+            isSevered = false;
+            document.body.classList.remove('under-attack');
+            severanceOverlay.classList.add('hidden');
+            
+            gatewayStatus.innerText = 'SECURE [Simulation Ready]';
+            gatewayStatus.className = 'text-emerald-400 font-bold';
+            edgeStatus.innerText = 'ESP-NOW (CCMP)';
+            edgeStatus.className = 'text-emerald-400 font-bold';
+            serialStatus.innerText = 'LISTENING';
+            serialStatus.className = 'text-emerald-400';
+            updateAnomalyScore(0.08);
+            
+            btnDefend.disabled = true;
+            btnDefend.classList.add('opacity-50', 'cursor-not-allowed');
+            btnAttack.disabled = false;
+            btnAttack.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        btnAttack.addEventListener('click', () => {
+            if (!vehicle || isSevered) return;
+            isUnderAttack = true;
+            
+            // Visual Updates
+            document.body.classList.add('under-attack');
+            gatewayStatus.innerText = 'SIMULATED ANOMALY';
+            gatewayStatus.className = 'text-rose-500 font-bold animate-pulse';
+            edgeStatus.innerText = 'COMMAND OVERRIDE MODEL';
+            edgeStatus.className = 'text-rose-500 font-bold animate-pulse';
+            serialStatus.innerText = 'BURST/OVERRIDE MODEL';
+            serialStatus.className = 'text-rose-500 font-bold';
+
+            // Enable Defense Button
+            btnDefend.disabled = false;
+            btnDefend.classList.remove('opacity-50', 'cursor-not-allowed');
+            btnAttack.disabled = true;
+            btnAttack.classList.add('opacity-50', 'cursor-not-allowed');
+            logEvent('ALERT', 'Command override injected; abnormal steering pattern active at serial chokepoint model.');
+            appendSerial('ALERT', 'CMD:OVERRIDE,VEH=VEH1,STEER=RANDOM,BURST=TRUE');
+            updateAnomalyScore(0.91);
+            addEvidence('COMMAND_OVERRIDE', 'Threat Model', 'Random steering injected at serial chokepoint model', 'VAL-05');
+            updateValidationBanner('VAL-05 — command override model active; anomaly score is critical and STOP/severance is now available.');
+        });
+
+        btnDefend.addEventListener('click', () => {
+            if (!isUnderAttack) return;
+            
+            isUnderAttack = false;
+            isSevered = true;
+            
+            // Physical Mitigation
+            if (vehicle) vehicle.speed = 0; // Emergency STOP command
+            
+            // Visual Updates
+            document.body.classList.remove('under-attack');
+            severanceOverlay.classList.remove('hidden');
+            gatewayStatus.innerText = 'LOCKED [Simulated Severance]';
+            gatewayStatus.className = 'text-amber-500 font-bold';
+            edgeStatus.innerText = 'ISOLATED';
+            edgeStatus.className = 'text-amber-500 font-bold';
+            serialStatus.innerText = 'SEVERED MODEL';
+            serialStatus.className = 'text-amber-500 font-bold';
+
+            btnDefend.disabled = true;
+            btnDefend.classList.add('opacity-50', 'cursor-not-allowed');
+            logEvent('MITIGATE', 'STOP issued; simulated serial severance locked the Gateway-to-Hub path.');
+            appendSerial('TX', 'CMD:STOP,REASON=ANOMALY_SCORE_CRITICAL,SEVERANCE=SIMULATED');
+            updateAnomalyScore(1.00);
+            addEvidence('STOP_SEVERANCE', 'Gateway Model', 'STOP issued; serial pathway locked in simulation', 'VAL-05');
+            updateValidationBanner('VAL-05 — STOP/severance response simulated; physical actuation path is isolated.');
+        });
+
+
+
+        function setNavigationMode(mode, shouldReset = true) {
+            currentNavMode = mode;
+            document.querySelectorAll('.nav-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.nav === mode));
+            const navStatus = document.getElementById('nav-status');
+            const navDescription = document.getElementById('nav-description');
+            if (navStatus) {
+                navStatus.innerText = mode === 'track' ? 'TRACK FOLLOWING ACTIVE — THESIS DEFAULT' : 'BOUNDARY CONTAINMENT ACTIVE — EXPLORATORY';
+                navStatus.className = mode === 'track' ? 'text-[11px] font-mono text-emerald-300' : 'text-[11px] font-mono text-amber-300';
+            }
+            if (navDescription) {
+                navDescription.innerText = mode === 'track'
+                    ? 'Default: draw or load a white track, then deploy the vehicle. The simulated sensors treat white pixels as the road/lane to follow, matching the current FRD/SAD navigation model.'
+                    : 'Exploratory: draw or load a closed white boundary. The simulated sensors treat white pixels as walls to avoid. Use this only as a supplemental concept, not the thesis-default navigation model.';
+            }
+            if (shouldReset) {
+                vehicle = null;
+                teleCtx.clearRect(0, 0, width, height);
+                resetTelemetryReadouts();
+                resetThreatState();
+                drawDefaultLane(true);
+                logEvent('INFO', `Navigation model switched to ${mode.toUpperCase()}.`);
+                addEvidence('NAV_MODEL_CHANGE', 'Simulator UI', mode === 'track' ? 'Track following thesis default' : 'Boundary containment exploratory', 'Walkthrough support only');
+            }
+        }
+
+        document.querySelectorAll('.nav-mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => setNavigationMode(btn.dataset.nav, true));
+        });
+
+        document.querySelectorAll('.draw-tool-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.draw-tool-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentDrawTool = btn.dataset.tool;
+                const toolStatus = document.getElementById('tool-status');
+                if (toolStatus) {
+                    const label = currentDrawTool === 'freehand' ? 'CUSTOM DRAW ACTIVE' : `${currentDrawTool.toUpperCase()} PRESET ACTIVE`;
+                    toolStatus.innerText = label;
+                }
+                teleCtx.clearRect(0, 0, width, height);
+                logEvent('INFO', `Drawing tool switched to ${currentDrawTool.toUpperCase()}.`);
+
+                if (currentDrawTool === 'box' || currentDrawTool === 'oval') {
+                    vehicle = null;
+                    resetTelemetryReadouts();
+                    resetThreatState();
+                    drawPresetShape(currentDrawTool, true);
+                } else {
+                    updateValidationBanner(currentNavMode === 'track'
+                        ? 'VAL-03 reference — Custom Draw selected. Draw a centerline track before deploying the vehicle.'
+                        : 'Exploratory mode — Custom Draw selected. Draw a closed containment boundary before deploying the vehicle.');
+                }
+            });
+        });
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                setDemoMode(btn.dataset.mode, true);
+            });
+        });
+
+        document.getElementById('btn-run-sequence').addEventListener('click', runDemoSequence);
+
+        document.getElementById('btn-export').addEventListener('click', () => {
+            const rows = [['timestamp','event_type','source','value','validation'], ...evidenceRows.map(r => [r.timestamp, r.eventType, r.source, r.value, r.validation])];
+            const csv = rows.map(row => row.map(cell => `"${String(cell).replaceAll('"','""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'sentinel_cps_simulator_mock_evidence.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+            logEvent('INFO', 'Mock evidence CSV exported from browser simulation.');
+        });
+
+        // Initialize
+        resizeCanvases();
+        drawDefaultLane(false);
+        addEvidence('INIT', 'Simulator', 'Default TV track rendered', 'VAL-03');
+        updateAnomalyScore(0.08);
+        setDemoMode('concept', false);
+        updateValidationBanner('Overview — Gateway path, Smart TV track surface, thesis-default track following, and simulated STOP response.');
+        appendSerial('RX', 'TEL:VEH1,L=000,R=000,F=000,MODE=TRACK,STEER=0.000,STATUS=READY');
+
+    </script>
+</body>
+</html>

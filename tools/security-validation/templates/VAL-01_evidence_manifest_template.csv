@@ -1,0 +1,7 @@
+filename,sha256_checksum,artifact_type,private_or_public,notes
+01_uname.txt,,host_info,private,
+07_listening_ports.txt,,network_posture,private,
+12_ssh_status.txt,,ssh_status,private,
+15_authorized_keys_metadata.txt,,ssh_metadata,private,
+16_nftables_ruleset.txt,,firewall_posture,private,
+redacted_example.txt,,redacted_example,public_after_review,

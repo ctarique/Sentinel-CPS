@@ -1,0 +1,6 @@
+timestamp,timestamp_iso,monotonic_ns,pid,comm,syscall,fd,count,retval,fd_path,device_match,notes
+1200.5,,1,100,gateway,write,3,4,4,/dev/ttyUSB0,true,grace boundary
+1201.0,,2,100,gateway,write,3,4,4,/dev/ttyUSB0,true,after locked
+1500.0,,3,200,rogue,write,4,4,4,/dev/ttyUSB0,true,orphan
+1500.1,,4,200,rogue,write,4,4,4,/dev/ttyUSB0,true,orphan
+1500.2,,5,200,rogue,write,4,4,4,/dev/ttyUSB0,true,orphan

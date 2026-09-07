@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sentinel-CPS Read-Only Track Display</title>
+    <style>
+        :root { color-scheme: dark; --bg:#020617; --panel:#0f172a; --line:#38bdf8; --muted:#94a3b8; --ok:#34d399; --warn:#fbbf24; }
+        * { box-sizing: border-box; }
+        html, body { margin:0; min-height:100%; background:var(--bg); color:#f8fafc; font-family:Inter,system-ui,sans-serif; }
+        body { padding:clamp(1rem,3vw,2.5rem); }
+        main { width:min(1280px,100%); margin:0 auto; }
+        header { display:flex; align-items:end; justify-content:space-between; gap:1.5rem; margin-bottom:1rem; }
+        h1 { margin:0; font-size:clamp(1.6rem,4vw,3rem); }
+        .subtitle { color:var(--muted); margin:.35rem 0 0; }
+        .status { display:grid; grid-template-columns:repeat(3,minmax(8rem,1fr)); gap:.75rem; }
+        .card { background:var(--panel); border:1px solid #334155; border-radius:.75rem; padding:.75rem 1rem; }
+        .card small { color:var(--muted); display:block; text-transform:uppercase; letter-spacing:.08em; font-size:.68rem; }
+        .card strong { color:var(--ok); display:block; margin-top:.25rem; overflow-wrap:anywhere; }
+        .track-frame { position:relative; height:min(68vh,720px); min-height:360px; background:#000; border:5px solid #1e293b; border-radius:1rem; overflow:hidden; box-shadow:0 24px 70px rgba(0,0,0,.45); }
+        canvas { width:100%; height:100%; display:block; }
+        .legend { position:absolute; left:1rem; bottom:1rem; color:var(--muted); background:rgba(2,6,23,.82); border:1px solid #334155; border-radius:.55rem; padding:.5rem .7rem; font-size:.75rem; }
+        .foot { color:var(--muted); font-size:.75rem; margin-top:.75rem; }
+        @media (max-width:760px) { header { align-items:stretch; flex-direction:column; } .status { grid-template-columns:1fr 1fr; } }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div>
+            <h1>Sentinel-CPS Track</h1>
+            <p class="subtitle">Read-only laboratory display</p>
+        </div>
+        <div class="status" aria-live="polite">
+            <div class="card"><small>Gateway</small><strong id="gateway-state">CHECKING</strong></div>
+            <div class="card"><small>Vehicle</small><strong id="vehicle-state">CHECKING</strong></div>
+            <div class="card"><small>Steering</small><strong id="steering">0.000</strong></div>
+        </div>
+    </header>
+    <section class="track-frame" aria-label="Rendered centerline track">
+        <canvas id="track" aria-label="Track centerline"></canvas>
+        <div class="legend">Centerline rendering with reported steering marker</div>
+    </section>
+    <p class="foot">Values refresh automatically from read-only Gateway resources.</p>
+</main>
+<script>
+    const canvas = document.getElementById('track');
+    const context = canvas.getContext('2d');
+    let points = [];
+    let steering = 0;
+
+    function resize() {
+        const rect = canvas.getBoundingClientRect();
+        const scale = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(rect.width * scale);
+        canvas.height = Math.floor(rect.height * scale);
+        context.setTransform(scale, 0, 0, scale, 0, 0);
+        draw(rect.width, rect.height);
+    }
+
+    function draw(width, height) {
+        context.clearRect(0, 0, width, height);
+        context.fillStyle = '#020617';
+        context.fillRect(0, 0, width, height);
+        if (points.length > 1) {
+            context.strokeStyle = '#38bdf8';
+            context.lineWidth = Math.max(5, width * 0.007);
+            context.lineCap = 'round';
+            context.lineJoin = 'round';
+            context.beginPath();
+            points.forEach((point, index) => {
+                const x = Number(point.x) * width;
+                const y = Number(point.y) * height;
+                if (index === 0) context.moveTo(x, y);
+                else context.lineTo(x, y);
+            });
+            context.stroke();
+        }
+        context.save();
+        context.translate(width / 2, height / 2);
+        context.rotate(Math.max(-1, Math.min(1, steering)) * 0.45);
+        context.fillStyle = '#f8fafc';
+        context.fillRect(-10, -22, 20, 44);
+        context.restore();
+    }
+
+    async function refresh() {
+        try {
+            const [trackResponse, statusResponse] = await Promise.all([
+                fetch('/api/track'),
+                fetch('/api/display/status')
+            ]);
+            if (!trackResponse.ok || !statusResponse.ok) throw new Error('read failed');
+            const track = await trackResponse.json();
+            const status = await statusResponse.json();
+            points = Array.isArray(track.centerline_points) ? track.centerline_points : [];
+            steering = Number(status.steer || 0);
+            document.getElementById('gateway-state').textContent = status.gateway_locked ? 'LOCKED' : 'READY';
+            document.getElementById('vehicle-state').textContent = String(status.vehicle_state || 'UNKNOWN');
+            document.getElementById('steering').textContent = steering.toFixed(3);
+            resize();
+        } catch (_) {
+            document.getElementById('gateway-state').textContent = 'UNAVAILABLE';
+        }
+    }
+
+    window.addEventListener('resize', resize);
+    refresh();
+    window.setInterval(refresh, 2000);
+</script>
+</body>
+</html>

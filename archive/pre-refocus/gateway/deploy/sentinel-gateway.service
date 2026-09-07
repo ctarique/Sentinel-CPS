@@ -1,0 +1,37 @@
+[Unit]
+Description=Sentinel-CPS Gateway
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=sentinel
+Group=sentinel
+SupplementaryGroups=dialout
+
+WorkingDirectory=/opt/sentinel-cps/gateway
+
+ExecStart=/opt/sentinel-cps/gateway/venv/bin/python /opt/sentinel-cps/gateway/app.py
+
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+EnvironmentFile=/etc/sentinel-cps/gateway.env
+
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/sentinel-cps/gateway/data
+
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

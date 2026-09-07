@@ -1,0 +1,25 @@
+{
+  "schema_version": "sentinel-live-v1",
+  "rule_configuration": "anomaly_rules.example.json",
+  "inputs": {
+    "actions_csv": "../../gateway/data/actions.csv",
+    "telemetry_csv": "../../gateway/data/telemetry.csv",
+    "ebpf_serial_trace_csv": "../../observability-ebpf/evidence/VAL-04_Observability/ebpf_traces/serial_trace_live.csv"
+  },
+  "response_mode": "observe_only",
+  "minimum_severity": "HIGH",
+  "response_rule_allowlist": [
+    "R002",
+    "R004"
+  ],
+  "gateway_url": "http://127.0.0.1:8080",
+  "polling_interval_ms": 500,
+  "allow_mock_mitigation": false,
+  "require_hardware_provenance": true,
+  "quiet_period_sec": 30,
+  "http_timeout_sec": 2,
+  "max_read_bytes_per_poll": 1048576,
+  "max_rows_per_source": 2048,
+  "state_directory": "../runtime/live_state",
+  "evidence_directory": "../runtime/live_evidence"
+}

@@ -1,114 +1,123 @@
 # Sentinel-CPS
 
-Sentinel-CPS is a secure remote cyber-physical systems (CPS) education lab
-architecture. It is being developed as a master's thesis prototype for giving
-remote users meaningful access to physical IoT experiments without directly
-exposing protected gateway services, edge devices, or the broader enterprise
-network.
+**Sentinel-CPS** is a Zero-Trust-oriented cyber-physical systems (CPS) laboratory prototype developed as my master's thesis in Cybersecurity at Southeast Missouri State University.
 
-The v10.0 architecture uses a Zero-Trust Raspberry Pi Gateway as the central
-policy, command, logging, and observability point. A native Flask command and
-control (C2) application is planned to run through `systemd` on TCP port
-`8080`. The Gateway communicates with a tethered ESP32 Hub over
-`/dev/ttyUSB0`, and the Hub exchanges encrypted ESP-NOW commands and telemetry
-with autonomous ESP32 vehicles.
+The project investigates how an **instructor-administered Raspberry Pi 4 Gateway** can provide students with meaningful access to a physical ESP32-based experiment while keeping administrative authority, unrestricted device access, and recovery control separate from ordinary student operation.
 
-## Physical Execution Model
+The Raspberry Pi Gateway serves as the central **policy, workflow, evidence, and coordination point**. Students interact through a bounded browser workflow for authorized ESP32 source-code submission and permitted experiment activity. The Gateway communicates with one ESP32 CPS over **Wi-Fi** and drives a local Smart TV directly through **HDMI**.
 
-Sentinel-CPS uses a horizontally mounted Smart TV as a dynamic physical track.
-The TV renders a high-contrast digital lane, while ESP32 vehicles use
-downward-facing analog light sensors and onboard PID control to follow the
-displayed path. This TV-as-a-Track model provides repeatable,
-software-defined physical experiments without rebuilding a manual track.
+Sentinel-CPS applies selected Zero Trust principles at prototype scale, including explicit authorization, least privilege, role separation, bounded exposure, controlled workflow acceptance, and evidence-aware validation. It is not intended to represent a complete enterprise Zero Trust Architecture.
+
+## Architecture
+
+The final architecture separates four primary responsibilities:
+
+- **Instructor Administration** — Gateway configuration, laboratory policy, recovery, exceptional approval, and evidence review.
+- **Student / Lab-User Workflow** — bounded browser-based submission and permitted experiment interaction.
+- **Raspberry Pi 4 Sentinel Gateway** — authorization, workflow control, preparation, Wi-Fi communication, evidence recording, and recovery coordination.
+- **Physical CPS Environment** — one ESP32 CPS testbed and a Smart TV connected directly to the Raspberry Pi through HDMI.
+
+Primary paths:
+
+**Student / Lab User → Bounded Browser Workflow → Raspberry Pi 4 Sentinel Gateway → Wi-Fi → ESP32 CPS**
+
+**Raspberry Pi 4 Sentinel Gateway → HDMI → Smart TV**
+
+Instructor administration remains separately authorized from student operation.
+
+## Bounded Workflow
+
+Sentinel-CPS defines five workflow stages:
+
+1. **Submit** — receive ESP32 source code through the authorized Gateway interface.
+2. **Check and Authorize** — evaluate role, requested activity, permitted work item, and approved laboratory configuration.
+3. **Prepare** — prepare only the permitted deployment or interaction activity.
+4. **Communicate** — communicate with the ESP32 CPS through the Gateway-mediated Wi-Fi path.
+5. **Record and Recover** — preserve evidence and support bounded instructor-governed status, stop, reset, or recovery handling.
+
+Each stage has a separate evidentiary meaning. Successful submission, preparation, communication, and physical operation are not treated as interchangeable claims.
 
 ## Security Model
 
-The Raspberry Pi Gateway is the only authorized mediator between remote users
-and the physical CPS environment. The v10.0 design includes:
+The prototype emphasizes:
 
-* Controlled remote educational access through an authorized bastion workflow
-* Native host execution for Gateway services
-* Default-deny network policy and least-privilege endpoint access
-* A serial chokepoint between the Gateway and ESP32 Hub
-* Encrypted ESP-NOW edge telemetry
-* Planned eBPF tracing of Gateway serial activity
-* Planned lightweight AI anomaly detection
-* Planned emergency STOP and controlled serial-severance responses
+- explicit authorization,
+- least privilege,
+- instructor/student role separation,
+- bounded student interaction,
+- limited Gateway service exposure,
+- protected credentials and private configuration,
+- instructor-governed recovery, and
+- evidence-proportional security claims.
 
-Sensitive deployment details, credentials, private keys, live network
-identifiers, and institution-specific operational configuration are excluded
-from this public repository.
+Network or browser reachability does not automatically grant administrative authority.
 
-## Repository Layout
+## Validation
 
-```text
-.
-├── docs/
-│   ├── architecture/       # Sanitized diagrams and architecture history
-│   ├── evidence/           # Placeholder for reviewed validation evidence
-│   ├── formal/             # Current shareable v10.0 thesis PDFs
-│   ├── network/            # Sanitized and legacy network documentation
-│   ├── research_logs/      # Preserved repository research history
-│   └── validation/         # Reconciliation and validation planning
-├── firmware/
-│   ├── hub/                # ESP32 Hub firmware placeholder
-│   ├── vehicle/            # ESP32 vehicle firmware placeholder
-│   └── esp32_serial_protocol.md
-├── gateway/
-│   ├── data/               # Ignored runtime data
-│   ├── sentinel/           # Gateway package placeholder
-│   ├── static/             # Static asset placeholder
-│   ├── templates/          # Flask template placeholder
-│   └── tests/              # Gateway test placeholder
-├── host/
-│   ├── nftables/           # Public nftables example configuration
-│   ├── systemd/            # Reviewed service configuration placeholder
-│   └── udev/               # Reviewed device policy placeholder
-├── lane-subsystem/         # TV-as-a-Track and light-sensor lane material
-├── logs/                   # Ignored runtime logs
-└── overwatch/
-    ├── ebpf/               # Planned eBPF implementation placeholder
-    └── inference/          # Planned anomaly-inference placeholder
-```
+Evaluation is organized around five validation targets:
 
-## Current Build Status
+| Target | Focus |
+| --- | --- |
+| **VAL-01** | Gateway roles and workflow boundary |
+| **VAL-02** | Bounded Wi-Fi deployment / interaction |
+| **VAL-03** | HDMI display and physical laboratory substrate |
+| **VAL-04** | Evidence and supporting observability |
+| **VAL-05** | Supporting monitoring, mitigation, and offline analysis |
 
-Repository reconciliation for Sentinel-CPS v10.0 is complete. The repository
-now contains organized, selected shareable thesis PDFs, preserved architecture and
-research history, the current serial protocol note, lane-subsystem documentation,
-an early Gateway MVP scaffold, ESP32 firmware scaffolding, sanitized host-policy
-examples, and placeholders for planned eBPF monitoring and AI inference.
+Sentinel-CPS distinguishes Web/Gateway evidence, preparation/build evidence, Wi-Fi/device-response evidence, Gateway host-observability evidence, and direct physical evidence.
 
-Additional implementation work is still required before the system should be
-treated as a complete deployment.
+Physical claims require direct laboratory observation or another approved physical evidence source associated with the documented run.
 
-## Next Implementation Step
+## Supporting Security Capabilities
 
-The next implementation task is **Gateway MVP refinement**: review and
-sanitize the existing Flask prototype, define its configuration boundaries,
-align it with TCP port `8080` and the repository layout, then add focused tests
-before integrating hardware behavior.
+### eBPF / BCC
 
-## Documentation
+Selected eBPF/BCC instrumentation may provide Gateway-side host metadata for correlation and diagnosis. It is supporting observability and does not independently prove ESP32 or physical behavior.
 
-* Imported v10.0 formal thesis PDFs: `docs/formal/`
-* Architecture material: `docs/architecture/`
-* Network documentation: `docs/network/`
-* Reconciliation decisions and manual-review queue:
-  `docs/validation/repository_reconciliation_v10.md`
+### Deterministic Monitoring and Mitigation
+
+Selected deterministic safeguards may identify documented abnormal patterns. Mitigation remains bounded, authorized, recorded, and instructor-governed.
+
+### Isolation Forest
+
+Isolation Forest is limited to **offline analyst assistance**. It may rank unusual eligible evidence windows for later investigation, but it does not control the Gateway or ESP32, authorize activity, modify live policy, or trigger mitigation.
+
+## Repository Organization
+
+The repository separates the current Sentinel-CPS architecture from superseded research and implementation work.
+
+- `gateway/` — current Raspberry Pi Gateway implementation area
+- `firmware/` — current ESP32 CPS firmware area
+- `docs/architecture/` — current architecture documentation
+- `host/` — Gateway host configuration area
+- `overwatch/` — supporting observability and analysis areas
+- `tools/` — reusable security-validation and evidence-integration tooling
+- `archive/pre-refocus/` — preserved development from earlier Sentinel-CPS architectures
+
+## Historical Development
+
+Sentinel-CPS underwent a major architecture refocus on August 19, 2026.
+
+Earlier development included an ESP32 Hub, Raspberry Pi-to-Hub USB serial communication, `/dev/ttyUSB0`, ESP-NOW, serial command and telemetry protocols, vehicle-oriented embedded communication, serial-focused eBPF/BCC observability, and earlier Smart TV/network arrangements.
+
+That work is preserved under `archive/pre-refocus/` as part of the project's engineering and research history, but it does **not** define or validate the final Gateway/Wi-Fi/HDMI architecture.
+
+## Current Status
+
+The final Gateway-centered architecture, requirements, research methodology, security boundaries, and validation framework have been defined and reconciled.
+
+Implementation and laboratory validation of the final architecture remain ongoing. Historical software results are preserved as development evidence rather than being presented as validation of the final system.
 
 ## Public Repository Notice
 
-This repository is a sanitized research and portfolio version of Sentinel-CPS,
-not a production deployment guide. Public examples and diagrams must use
-placeholders rather than live infrastructure identifiers.
+This repository is a **sanitized research and portfolio representation** of Sentinel-CPS.
+
+Credentials, private keys, private network addresses, device identifiers, institution-specific infrastructure details, and other sensitive deployment information are intentionally excluded.
 
 ## Author
 
-**Tarique Chowdhury**
-
-M.S. Cybersecurity Candidate
-
+**Tarique Chowdhury**  
+M.S. Cybersecurity Candidate  
 Southeast Missouri State University
 
 ## License

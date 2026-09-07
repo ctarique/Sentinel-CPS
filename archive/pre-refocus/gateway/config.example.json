@@ -1,0 +1,16 @@
+{
+  "host": "0.0.0.0",
+  "port": 8080,
+  "mock_serial": true,
+  "serial_port": "/dev/ttyUSB0",
+  "serial_baud": 115200,
+  "serial_ack_timeout_ms": 1000,
+  "mock_ack_delay_ms": 10,
+  "keepalive_enabled": true,
+  "keepalive_interval_ms": 3000,
+  "mitigation_api_enabled": false,
+  "mitigation_loopback_only": true,
+  "mitigation_idempotency_cache_size": 128,
+  "max_centerline_points": 500,
+  "safe_boot_locked": true
+}
